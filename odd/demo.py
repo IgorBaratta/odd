@@ -21,7 +21,7 @@ def solution(values, x):
     values[:, 0] = numpy.sin(numpy.pi*x[:, 0])*numpy.sin(numpy.pi*x[:, 1])
 
 
-n, p = 3, 2
+n, p = 3, 1
 comm = MPI.COMM_WORLD
 
 ghost_mode = GhostMode.shared_vertex if (comm.size > 1) else GhostMode.none
@@ -55,9 +55,9 @@ solver = PETSc.KSP().create(comm)
 solver.setOperators(A)
 solver.setType('gmres')
 solver.setUp()
-solver.pc.setType('asm')
-solver.pc.setASMOverlap(1)
-solver.pc.setUp()
+# solver.pc.setType('asm')
+# solver.pc.setASMOverlap(1)
+# solver.pc.setUp()
 # local_ksp = solver.pc.getASMSubKSP()[0]
 # local_ksp.setType('preonly')
 # local_ksp.pc.setType('lu')
@@ -73,10 +73,4 @@ x = A.getVecLeft()
 solver.solve(b, x)
 
 u_exact = interpolate(solution, FunctionSpace(mesh, ("Lagrange", p)))
-
-print(A.getSizes())
-print(ASM.PETScSizes())
-
 print(numpy.linalg.norm(u_exact.vector.array - x.array))
-
-print(solver.its)
