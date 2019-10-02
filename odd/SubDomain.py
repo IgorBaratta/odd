@@ -1,6 +1,6 @@
 from mpi4py import MPI
 from DofMap import DofMap
-from dolfin import FunctionSpace, cpp, fem
+from dolfin import FunctionSpace, Function, cpp, fem
 from dolfin.function import functionspace
 import numpy
 
@@ -28,6 +28,10 @@ class SubDomainData():
 
     def restricted_function_space(self):
         return self._Vi
+
+    def global_vec(self):
+        u = Function(self._V)
+        return u.vector.copy()
 
     def local2local(self):
         # TODO : Only necessary because local copy of the mesh gets reordered
