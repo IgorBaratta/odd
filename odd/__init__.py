@@ -15,7 +15,7 @@ cpp.common.SubSystemsManager.init_petsc()
 del cpp
 
 # Import public interface
-from .DofMap import DofMap
-from .Schwarz import AdditiveSchwarz, SMType
-from .SubDomain import SubDomainData
-from .VectorScatter import PETScVectorScatter, RMAVectorScatter
+from .dofmap import DofMap
+from .schwarz import AdditiveSchwarz, SMType
+from .subdomain import SubDomainData
+from .vector_scatter import PETScVectorScatter, RMAVectorScatter

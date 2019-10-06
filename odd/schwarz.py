@@ -1,12 +1,11 @@
 from enum import Enum
-
-from mpi4py import MPI
-from petsc4py.PETSc import IntType
-from petsc4py import PETSc
-from .SubDomain import SubDomainData
-from .DofMap import DofMap
-
 import numpy
+from mpi4py import MPI
+from petsc4py import PETSc
+from petsc4py.PETSc import IntType
+from .subdomain import SubDomainData
+from .dofmap import DofMap
+from .vector_scatter import PETScVectorScatter
 
 
 class SMType(Enum):
@@ -26,19 +25,17 @@ class AdditiveSchwarz():
         # Restricted Additive Schwarz is the default type
         self._type = SMType.restricted
 
-        #
+        # set preconditioner state
         self.state = False
-
-        self.is_owned = PETSc.IS().createGeneral(self.dofmap.owned_indices)
-        self.is_local = PETSc.IS().createGeneral(self.dofmap.indices)
 
         if (A.type == PETSc.Mat.Type.MPIAIJ):
             # A is an assembled distributed global matrix
-            self.Ai = A.createSubMatrices(self.is_local)[0]
-            self.vglobal = A.getVecRight()
+            self._is_local = PETSc.IS().createGeneral(self.dofmap.indices)
+            self.Ai = A.createSubMatrices(self._is_local)[0]
+            self.vec_global = A.getVecRight()
         elif (A.type == PETSc.Mat.Type.SEQAIJ):
             # A is a sequential local matrix for each process
-            self.vglobal = data.global_vec()
+            self.vec_global = data.global_vec()
             self.Ai = A
         else:
             raise Exception('Wrong matrix type')
@@ -71,11 +68,8 @@ class AdditiveSchwarz():
             self.solver.pc.setFactorSolverType('mumps')
             self.solver.setFromOptions()
 
-        # Create PETSc vector scatter object, for managing communication
-        self.vector_scatter = PETSc.Scatter().create(self.vec1,
-                                                     None,
-                                                     self.vglobal,
-                                                     self.is_local)
+        self.scatter = PETScVectorScatter(self.comm, self.dofmap,
+                                          self.vec1, self.vec_global)
 
         # Define state of preconditioner, True means ready to use
         self.state = True
@@ -98,9 +92,10 @@ class AdditiveSchwarz():
 
     def global_vector(self, bi: PETSc.Vec, destroy=False) -> PETSc.Vec:
         # TODO: Avoid making unecessary data duplication
+        # this may not be working very well....need some testing
         if self.state:
             if bi.comm.size == 1:
-                b = self.vglobal.duplicate()
+                b = self.vec_global.duplicate()
                 self.vector_scatter(bi, b,
                                     PETSc.InsertMode.INSERT_VALUES,
                                     PETSc.ScatterMode.SCATTER_FORWARD)
@@ -142,9 +137,7 @@ class AdditiveSchwarz():
         # have to zero vector, may contain garbage
         b.zeroEntries()
 
-        self.vector_scatter(x, self.vec1,
-                            PETSc.InsertMode.INSERT_VALUES,
-                            PETSc.ScatterMode.SCATTER_REVERSE)
+        self.scatter.reverse(self.vec1, x)
 
         self.solver.solve(self.vec1, self.vec2)
 
@@ -155,24 +148,18 @@ class AdditiveSchwarz():
         else:
             raise RuntimeError("Not implemented")
 
-        self.vector_scatter(self.vec1, b,
-                            PETSc.InsertMode.ADD_VALUES,
-                            PETSc.ScatterMode.SCATTER_FORWARD)
+        self.scatter.forward(self.vec1, b)
 
     def mult(self, mat: PETSc.Mat, x: PETSc.Vec, b: PETSc.Vec):
         # have to zero vector, may contain garbage
         b.zeroEntries()
 
-        self.vector_scatter(x, self.vec1,
-                            PETSc.InsertMode.INSERT_VALUES,
-                            PETSc.ScatterMode.SCATTER_REVERSE)
+        self.scatter.reverse(self.vec1, x)
 
         self.Ai.mult(self.vec1, self.vec2)
         self.Di.mult(self.vec2, self.vec1)
 
-        self.vector_scatter(self.vec1, b,
-                            PETSc.InsertMode.ADD_VALUES,
-                            PETSc.ScatterMode.SCATTER_FORWARD)
+        self.scatter.forward(self.vec1, b)
 
     @staticmethod
     def restritction_matrix(dofmap: DofMap) -> PETSc.Mat:

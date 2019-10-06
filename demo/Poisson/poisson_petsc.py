@@ -1,13 +1,11 @@
+import numpy
 from mpi4py import MPI
 from petsc4py import PETSc
-import numpy
 
 from dolfin import (DirichletBC, Function, FunctionSpace, TestFunction,
                     TrialFunction, UnitSquareMesh, fem, interpolate)
 from dolfin.cpp.mesh import GhostMode
 from ufl import SpatialCoordinate, dot, dx, grad, pi, sin
-
-from odd import AdditiveSchwarz, SubDomainData
 
 
 def boundary(x):
@@ -27,7 +25,6 @@ ghost_mode = GhostMode.shared_vertex if (comm.size > 1) else GhostMode.none
 mesh = UnitSquareMesh(comm, 2**n, 2**n, ghost_mode=ghost_mode, diagonal="left")
 
 V = FunctionSpace(mesh, ("Lagrange", p))
-subdomain = SubDomainData(mesh, V, comm)
 
 u = TrialFunction(V)
 v = TestFunction(V)
@@ -54,13 +51,17 @@ solver = PETSc.KSP().create(comm)
 solver.setOperators(A)
 solver.setType('gmres')
 solver.setUp()
-ASM = AdditiveSchwarz(subdomain, A)
-ASM.setUp()
-solver.pc.setType('python')
-solver.pc.setPythonContext(ASM)
-solver.setFromOptions()
+solver.pc.setType('asm')
+solver.pc.setASMOverlap(1)
+solver.pc.setUp()
+local_ksp = solver.pc.getASMSubKSP()[0]
+local_ksp.setType('preonly')
+local_ksp.pc.setType('lu')
+local_ksp.pc.setFactorSolverType('mumps')
+
 
 x = A.getVecLeft()
+
 solver.solve(b, x)
 
 u_exact = interpolate(solution, FunctionSpace(mesh, ("Lagrange", p)))

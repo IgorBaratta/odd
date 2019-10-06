@@ -2,7 +2,7 @@ import numpy
 from mpi4py import MPI
 from dolfin import FunctionSpace, Function, cpp, fem
 from dolfin.function import functionspace
-from .DofMap import DofMap
+from .dofmap import DofMap
 
 
 class SubDomainData():

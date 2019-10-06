@@ -3,7 +3,7 @@ from petsc4py import PETSc
 from petsc4py.PETSc import InsertMode
 from petsc4py.PETSc import ScatterMode
 import numpy
-from .DofMap import DofMap
+from .dofmap import DofMap
 
 
 class VectorScatter():
@@ -21,10 +21,10 @@ class VectorScatter():
 
 class PETScVectorScatter(VectorScatter):
     """ TODO : class docstring """
-    def __init__(self, dofmap: DofMap,
+    def __init__(self, comm: MPI.Intracomm,
+                 dofmap: DofMap,
                  local_vec: PETSc.Vec,
-                 global_vec: PETSc.Vec,
-                 comm: MPI.Intracomm):
+                 global_vec: PETSc.Vec):
         super().__init__(dofmap, comm)
 
         self._is_local = PETSc.IS().createGeneral(self.dofmap.indices)
