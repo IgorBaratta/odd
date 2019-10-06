@@ -12,9 +12,11 @@ from dolfin.io import XDMFFile
 import numpy
 from petsc4py import PETSc
 
+from VectorScatter import PETScVectorScatter
+
 # Create mesh read mesh
 comm = MPI.COMM_WORLD
-Nx, Ny, = 5, 5
+Nx, Ny, = 10, 10
 p1 = np.array([0., 0., 0.])
 p2 = np.array([1., 1., 0.])
 cell_type = CellType.triangle
@@ -49,11 +51,23 @@ x, y = A.getVecs()
 
 
 PC = AdditiveSchwarz(subdomain, A)
+PC.setUp()
 
 x.array = comm.rank
-print(PC.vec1.array)
-print(x.array)
+# print(PC.vec1.array)
+# print(x.array)
 
-vector_scatter = PETSc.Scatter().create(PC.vec1, None, x, PC.is_A)
+local_vec = PC.vec1.copy()
+global_vec = x.copy()
+
+vector_scatter = PETSc.Scatter().create(PC.vec1, None, x, PC.is_local)
 vector_scatter(x, PC.vec1, PETSc.InsertMode.INSERT_VALUES, PETSc.ScatterMode.SCATTER_REVERSE)
 print(PC.vec1.array)
+local_vec = PC.vec1.copy()
+global_vec = x.copy()
+dofmap = PC.dofmap
+
+scatter = PETScVectorScatter(dofmap, local_vec, global_vec, comm)
+scatter.reverse(local_vec, global_vec)
+
+print(local_vec.array)

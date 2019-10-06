@@ -1,31 +1,38 @@
 from enum import Enum
 
 from mpi4py import MPI
-from numpy import arange, ones, zeros
-
-from petsc4py import PETSc
 from petsc4py.PETSc import IntType
-from SubDomain import SubDomainData
+from petsc4py import PETSc
+from .SubDomain import SubDomainData
+from .DofMap import DofMap
+
+import numpy
 
 
 class SMType(Enum):
+    """ TODO : class docstring """
     restricted = 1
     additive = 2
     multiplicative = 3
 
 
 class AdditiveSchwarz():
+    """ TODO : class docstring """
     def __init__(self, data: SubDomainData, A: PETSc.Mat):
+
         self.dofmap = data.dofmap
+        self.comm = data.comm
 
         # Restricted Additive Schwarz is the default type
         self._type = SMType.restricted
 
         #
+        self.state = False
+
         self.is_owned = PETSc.IS().createGeneral(self.dofmap.owned_indices)
         self.is_local = PETSc.IS().createGeneral(self.dofmap.indices)
 
-        if (A.comm.size == PETSc.Mat.Type.MPIAIJ):
+        if (A.type == PETSc.Mat.Type.MPIAIJ):
             # A is an assembled distributed global matrix
             self.Ai = A.createSubMatrices(self.is_local)[0]
             self.vglobal = A.getVecRight()
@@ -36,22 +43,25 @@ class AdditiveSchwarz():
         else:
             raise Exception('Wrong matrix type')
 
+        # Declare some variables, but leave the initialization
+        # for setup step
         self.Ri = PETSc.Mat().create(MPI.COMM_SELF)
         self.Di = PETSc.Mat().create(MPI.COMM_SELF)
         self.solver = PETSc.KSP().create(MPI.COMM_SELF)
 
-    def setUp(self, pc):
+    def setUp(self, pc=None):
 
-        # Create working vectors
+        # Create local working vectors, sequential
+        # compatible with the local sequential matrix
         self.vec1, self.vec2 = self.Ai.getVecs()
 
         # Assemble restrictiton and partition of unity matrices
         if not self.Ri.isAssembled():
-            self.Ri = restritction_matrix(self.dofmap)
-        if not self.Di.isAsssembled():
-            self.Di = partition_of_unity(self.dofmap)
+            self.Ri = self.restritction_matrix(self.dofmap)
+        if not self.Di.isAssembled():
+            self.Di = self.partition_of_unity(self.dofmap, "owned")
 
-        # Check if there is a valid local solver and creaate
+        # Check if there is a valid local solver and create
         # default it doesn't exist
         if not self.solver.type or self.solver.comm != MPI.COMM_SELF:
             self.solver = PETSc.KSP().create(MPI.COMM_SELF)
@@ -61,17 +71,52 @@ class AdditiveSchwarz():
             self.solver.pc.setFactorSolverType('mumps')
             self.solver.setFromOptions()
 
+        # Create PETSc vector scatter object, for managing communication
         self.vector_scatter = PETSc.Scatter().create(self.vec1,
                                                      None,
                                                      self.vglobal,
                                                      self.is_local)
+
+        # Define state of preconditioner, True means ready to use
+        self.state = True
+
+    def global_matrix(self) -> PETSc.Mat:
+        '''
+        Return the unassembled global matrix of type python.
+        '''
+        if self.state:
+            # Define global unassembled global Matrix A
+            self.A = PETSc.Mat().create()
+            self.A.setSizes(self.sizes)
+            self.A.setType(self.A.Type.PYTHON)
+            self.A.setPythonContext(self)
+            self.A.setUp()
+            return self.A
+        else:
+            raise Exception('Matrix in wrong state.'
+                            'Please setUP preconditioner first.')
+
+    def global_vector(self, bi: PETSc.Vec, destroy=False) -> PETSc.Vec:
+        # TODO: Avoid making unecessary data duplication
+        if self.state:
+            if bi.comm.size == 1:
+                b = self.vglobal.duplicate()
+                self.vector_scatter(bi, b,
+                                    PETSc.InsertMode.INSERT_VALUES,
+                                    PETSc.ScatterMode.SCATTER_FORWARD)
+                return b
+            else:
+                raise Exception('Should be a sequential vector')
+        else:
+            raise Exception('Preconditioner in wrong state.'
+                            'Please setUP preconditioner first.')
 
     @property
     def type(self):
         return self._type
 
     @property
-    def PETScSizes(self):
+    def sizes(self):
         N_owned = self.dofmap.size_owned
         Ng = self.dofmap.size_global
         return ((N_owned, Ng), (N_owned, Ng))
@@ -103,9 +148,9 @@ class AdditiveSchwarz():
 
         self.solver.solve(self.vec1, self.vec2)
 
-        if self.type == ASMType.restricted:
+        if self.type == SMType.restricted:
             self.Di.mult(self.vec2, self.vec1)
-        elif self.type == ASMType.additive:
+        elif self.type == SMType.additive:
             self.vec1.array = self.vec2.array
         else:
             raise RuntimeError("Not implemented")
@@ -123,10 +168,14 @@ class AdditiveSchwarz():
                             PETSc.ScatterMode.SCATTER_REVERSE)
 
         self.Ai.mult(self.vec1, self.vec2)
-        b.array = self.vec2.array[:self.data.dofmap.size_owned]
+        self.Di.mult(self.vec2, self.vec1)
+
+        self.vector_scatter(self.vec1, b,
+                            PETSc.InsertMode.ADD_VALUES,
+                            PETSc.ScatterMode.SCATTER_FORWARD)
 
     @staticmethod
-    def restritction_matrix(dofmap):
+    def restritction_matrix(dofmap: DofMap) -> PETSc.Mat:
         """
         Explicitely construct the local restriction matrix for
         the current subdomain.''
@@ -135,15 +184,15 @@ class AdditiveSchwarz():
         # number of non-zeros per row
         nnz = 1
 
-        # Local Size
+        # Local Size, including overlap
         N = dofmap.size_local
 
         # Global Size
         N_global = dofmap.size_global
 
         # create restriction data in csr format
-        A = ones(N, dtype=IntType)
-        IA = arange(N + 1, dtype=IntType)
+        A = numpy.ones(N, dtype=IntType)
+        IA = numpy.arange(N + 1, dtype=IntType)
         JA = dofmap.indices
 
         # Create and assembly local Restriction Matrix
@@ -158,23 +207,24 @@ class AdditiveSchwarz():
         return R
 
     @staticmethod
-    def partition_of_unity(dofmap, mode="owned"):
+    def partition_of_unity(dofmap: DofMap, mode="owned") -> PETSc.Mat:
         """
-        Create partition of unit matrix for
-        for the current subdomain.
+        Return the assembled partition of unit matrix for the current
+        subdomain/process.
         """
 
-        # create restriction data in csr format
-        nnz = 1  # number of non-zeros per row
+        # number of non-zeros per row
+        nnz = 1
         N = dofmap.size_local
         N_owned = dofmap.size_owned
 
-        A = zeros(N, dtype=IntType)
+        # create restriction data in csr format
+        A = numpy.zeros(N, dtype=IntType)
         A[0:N_owned] = 1
-        IA = arange(N + 1, dtype=IntType)
-        JA = arange(N, dtype=IntType)
+        IA = numpy.arange(N + 1, dtype=IntType)
+        JA = numpy.arange(N, dtype=IntType)
 
-        # Create and assembly Restriction Matrix
+        # Create and assemble Partition of Unity Matrix
         D = PETSc.Mat().create(MPI.COMM_SELF)
         D.setType('aij')
         D.setSizes([N, N])

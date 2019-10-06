@@ -1,8 +1,8 @@
+import numpy
 from mpi4py import MPI
-from DofMap import DofMap
 from dolfin import FunctionSpace, Function, cpp, fem
 from dolfin.function import functionspace
-import numpy
+from .DofMap import DofMap
 
 
 class SubDomainData():
@@ -11,19 +11,26 @@ class SubDomainData():
                  V: functionspace.FunctionSpace,
                  global_comm: MPI.Intracomm):
 
+        # Store dolfin FunctionSpace object
         self._V = V
-        self.dofmap = DofMap(V)
+
+        # Store MPI communicator
         self.comm = global_comm
 
+        # Create domain decomposition DofMap
+        self.dofmap = DofMap(V)
+
+        # Store copy of local mesh
         global_index = mesh.topology.global_indices(mesh.geometry.dim)
         sorted_index = numpy.argsort(global_index).tolist()
-
         self.mesh = cpp.mesh.Mesh(MPI.COMM_SELF, mesh.cell_type,
                                   mesh.geometry.points[:, :mesh.geometry.dim],
                                   mesh.cells(), sorted_index,
                                   cpp.mesh.GhostMode.none)
 
         self.mesh.geometry.coord_mapping = fem.create_coordinate_map(self.mesh)
+        cpp.mesh.Ordering.order_simplex(self.mesh)
+
         self._Vi = FunctionSpace(self.mesh, V.ufl_element())
 
     def restricted_function_space(self):
@@ -38,9 +45,13 @@ class SubDomainData():
         # when overlap is added
         dof_oder = numpy.lexsort(self._V.tabulate_dof_coordinates().T)
         dof_oder_i = numpy.lexsort(self._Vi.tabulate_dof_coordinates().T)
+
         ord_arg = dof_oder.argsort()
-        map = dof_oder_i[ord_arg]
-        return map
+        ord_arg_i = dof_oder_i.argsort()
+
+        map_forward = dof_oder_i[ord_arg]
+        map_backward = dof_oder[ord_arg_i]
+        return map_forward, map_backward
 
     def interface_facets(self, mesh, reorder=False):
         gdim = self.mesh.geometry.dim

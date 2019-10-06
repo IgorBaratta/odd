@@ -7,8 +7,7 @@ from dolfin import (DirichletBC, Function, FunctionSpace, TestFunction,
 from dolfin.cpp.mesh import GhostMode
 from ufl import SpatialCoordinate, dot, dx, grad, pi, sin
 
-from SubDomain import SubDomainData
-from AdditiveSchwarz import AdditiveSchwarz
+from odd import AdditiveSchwarz, SubDomainData
 
 
 def boundary(x):
@@ -21,7 +20,7 @@ def solution(values, x):
     values[:, 0] = numpy.sin(numpy.pi*x[:, 0])*numpy.sin(numpy.pi*x[:, 1])
 
 
-n, p = 3, 1
+n, p = 4, 2
 comm = MPI.COMM_WORLD
 
 ghost_mode = GhostMode.shared_vertex if (comm.size > 1) else GhostMode.none
