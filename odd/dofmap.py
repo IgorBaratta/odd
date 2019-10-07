@@ -1,5 +1,6 @@
 from dolfin.function import functionspace
 from petsc4py.PETSc import IntType
+# from mpi4py import MPI
 import numpy
 
 
@@ -7,10 +8,19 @@ class DofMap:
     """ TODO : class docstring """
     def __init__(self,
                  V: functionspace.FunctionSpace):
-
+        """ All communication within this class should
+        be done at __init__"""
         self._dofmap = V.dofmap
         self._index_map = V.dofmap.index_map
-        self._id = V.mesh.mpi_comm().rank
+        self.comm = V.mesh.mpi_comm()
+
+        self._all_ranges = self.comm.allgather(self._index_map.size_local)
+        self._all_ranges = numpy.cumsum(self._all_ranges)
+        self._all_ranges = numpy.insert(self._all_ranges, 0, 0)
+
+    @property
+    def id(self):
+        return self.comm.rank
 
     @property
     def indices(self) -> numpy.ndarray:
@@ -70,6 +80,12 @@ class DofMap:
         of a given rectangle."""
         return self._index_map.ghosts
 
+    @property
+    def all_range(self):
+        """ Returns a string to be used as a printable representation
+        of a given rectangle."""
+        return self._all_ranges
+
     def neighbour_ghosts(self, i: int) -> numpy.ndarray:
         """ Returns a string to be used as a printable representation
         of a given rectangle."""
@@ -78,4 +94,4 @@ class DofMap:
         else:
             raise Exception('SubDomain ' + str(i) +
                             ' is not a neighbour  of subdomain ' +
-                            str(self._id))
+                            str(self.id))
