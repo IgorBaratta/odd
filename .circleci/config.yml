@@ -6,7 +6,7 @@ install_odd: &install_odd
 run_demo_mpi: &run_demo_mpi
   name: run demos MPI
   command: |
-            cd demo/Poisson
+            cd demo/poisson
             mpirun -n 3 python3 poisson.py
             mpirun -n 3 python3 poisson_petsc.py
 
