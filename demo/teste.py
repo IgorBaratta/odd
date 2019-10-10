@@ -1,73 +1,66 @@
-from dolfin import (RectangleMesh, FunctionSpace, TrialFunction, TestFunction, MeshFunction,
-                    Mesh, cpp)
-from dolfin.cpp.mesh import GhostMode, Ordering, CellType
-from ufl import dx, grad, inner
-import numpy as np
-from dolfin.fem import apply_lifting, assemble_matrix, assemble_vector, set_bc
-from petsc4py import PETSc
+#!/usr/bin/env python
+"""
+Parallel PI computation using Remote Memory Access (RMA)
+within Python objects exposing memory buffers (requires NumPy).
+usage::
+  $ mpiexec -n <nprocs> python cpi-rma.py
+"""
+
 from mpi4py import MPI
-from SubDomain import SubDomainData
-from AdditiveSchwarz import AdditiveSchwarz
-from dolfin.io import XDMFFile
-import numpy
-from petsc4py import PETSc
-
-from VectorScatter import PETScVectorScatter
-
-# Create mesh read mesh
-comm = MPI.COMM_WORLD
-Nx, Ny, = 10, 10
-p1 = np.array([0., 0., 0.])
-p2 = np.array([1., 1., 0.])
-cell_type = CellType.triangle
-ghost_mode = GhostMode.none
-diag = 'left'
-mesh = RectangleMesh(comm, [p1, p2], [Nx, Ny], cell_type, ghost_mode, diag)
-
-sorted_index = numpy.argsort(mesh.geometry.global_indices()).tolist()
-
-# =====================================#
-V = FunctionSpace(mesh, ("Lagrange", 1))
-subdomain = SubDomainData(mesh, V, comm)
-Vi = subdomain.restricted_function_space()
-interface_facets = subdomain.interface_facets(mesh, True)
-ff = MeshFunction("size_t", subdomain.mesh, subdomain.mesh.topology.dim - 1, 0)
-
-if subdomain.id == 0:
-    ff.values[interface_facets] = subdomain.id + 1
-    enconding = XDMFFile.Encoding.HDF5
-
-    with XDMFFile(subdomain.mesh.mpi_comm(), "interface.xdmf", encoding=enconding) as xdmf:
-        xdmf.write(ff)
-
-# ===================================#
-u, v = TrialFunction(V), TestFunction(V)
-
-a = inner(grad(u), grad(v)) * dx
-L = inner(1.0, v) * dx
-A = assemble_matrix(a)
-A.assemble()
-x, y = A.getVecs()
+from math import pi as PI
+from numpy import array
+import sys
 
 
-PC = AdditiveSchwarz(subdomain, A)
-PC.setUp()
+nprocs = MPI.COMM_WORLD.Get_size()
+myrank = MPI.COMM_WORLD.Get_rank()
 
-x.array = comm.rank
-# print(PC.vec1.array)
-# print(x.array)
+n = array([1, 2, 3, 4], dtype=int)
+dist_unit = 8
+win = MPI.Win.Create(n,  disp_unit=dist_unit, comm=MPI.COMM_WORLD)
+buffer = array(-1, dtype=int)
 
-local_vec = PC.vec1.copy()
-global_vec = x.copy()
+win.Fence()
+win.Get(buffer, 0, target=myrank)
+win.Fence()
 
-vector_scatter = PETSc.Scatter().create(PC.vec1, None, x, PC.is_local)
-vector_scatter(x, PC.vec1, PETSc.InsertMode.INSERT_VALUES, PETSc.ScatterMode.SCATTER_REVERSE)
-print(PC.vec1.array)
-local_vec = PC.vec1.copy()
-global_vec = x.copy()
-dofmap = PC.dofmap
+win.Free()
 
-scatter = PETScVectorScatter(dofmap, local_vec, global_vec, comm)
-scatter.reverse(local_vec, global_vec)
+print(myrank, buffer)
 
-print(local_vec.array)
+
+# import numpy as np
+# from mpi4py import MPI
+#
+#
+# comm = MPI.COMM_WORLD
+# size = comm.Get_size()
+# rank = comm.Get_rank()
+# status = MPI.Status()
+#
+#
+# dim = 10
+# itemsize = MPI.DOUBLE.Get_size()
+# nbytes = dim*itemsize
+#
+# if rank == 0:
+#     # memory = MPI.Alloc_mem(nbytes + 100)
+#     memory = np.arange(dim).astype(np.float64)
+#     print(memory)
+#
+#     fwin = MPI.Win.Create(memory, 1, comm=comm)
+#
+# else:
+#     cfwin = MPI.Win.Create(None, comm=comm)
+#     rbuf = np.zeros(dim, dtype=np.float64)
+#     print(rank, rbuf)
+#     print(rank, 'start get...')
+#     cfwin.Lock(0, lock_type=235)    # MPI_LOCK_SHARED = 235
+#     cfwin.Get(rbuf, target_rank=0)
+#     # req = cfwin.Rget(rbuf, target_rank=0)
+#     cfwin.Unlock(0)
+#
+#     # req.Wait()
+#
+#     print(rank, 'get complete.')
+#     print(rank, rbuf)

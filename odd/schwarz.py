@@ -5,7 +5,7 @@ from petsc4py import PETSc
 from petsc4py.PETSc import IntType
 from .subdomain import SubDomainData
 from .dofmap import DofMap
-from .vector_scatter import PETScVectorScatter
+from .vector_scatter import PETScVectorScatter, RMAVectorScatter, ScatterType
 
 
 class SMType(Enum):
@@ -45,6 +45,8 @@ class AdditiveSchwarz():
         self.Ri = PETSc.Mat().create(MPI.COMM_SELF)
         self.Di = PETSc.Mat().create(MPI.COMM_SELF)
         self.solver = PETSc.KSP().create(MPI.COMM_SELF)
+        self.scatter_type = ScatterType.PETSc
+
 
     def setUp(self, pc=None):
 
@@ -68,8 +70,12 @@ class AdditiveSchwarz():
             self.solver.pc.setFactorSolverType('mumps')
             self.solver.setFromOptions()
 
-        self.scatter = PETScVectorScatter(self.comm, self.dofmap,
-                                          self.vec1, self.vec_global)
+        if self.scatter_type == ScatterType.PETSc:
+            self.scatter = PETScVectorScatter(self.comm, self.dofmap)
+        elif self.scatter_type == ScatterType.RMA:
+            self.scatter = RMAVectorScatter(self.comm, self.dofmap)
+        elif self.scatter_type == ScatterType.SHM:
+            raise RuntimeError("Not implemented")
 
         # Define state of preconditioner, True means ready to use
         self.state = True

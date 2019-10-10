@@ -38,7 +38,7 @@ class DofMap:
     def shared_indices(self) -> numpy.ndarray:
         """ Return array of global indices for the shared dofs on this
         process."""
-        return self.indices[self.size_local:]
+        return self.indices[self.size_owned:]
 
     @property
     def size_local(self) -> int:
@@ -52,6 +52,7 @@ class DofMap:
         of a given rectangle."""
         return self._index_map.size_local
 
+    @property
     def size_overlap(self) -> int:
         """ Returns a string to be used as a printable representation
         of a given rectangle."""
@@ -78,19 +79,21 @@ class DofMap:
     def ghosts(self):
         """ Returns a string to be used as a printable representation
         of a given rectangle."""
-        return self._index_map.ghosts
+        return self._index_map.ghosts.astype(IntType)
 
     @property
-    def all_range(self):
+    def all_ranges(self):
         """ Returns a string to be used as a printable representation
         of a given rectangle."""
         return self._all_ranges
 
-    def neighbour_ghosts(self, i: int) -> numpy.ndarray:
+    def neighbour_ghosts(self, i: int) -> (numpy.ndarray, numpy.ndarray):
         """ Returns a string to be used as a printable representation
         of a given rectangle."""
         if i in self.neighbours:
-            return self._index_map.ghosts[self.ghost_owners == i]
+            local_indices = numpy.where(self.ghost_owners == i)[0] + self.size_owned
+            ghosts = self._index_map.ghosts[self.ghost_owners == i].astype(IntType)
+            return ghosts, local_indices.astype(IntType)
         else:
             raise Exception('SubDomain ' + str(i) +
                             ' is not a neighbour  of subdomain ' +

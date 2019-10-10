@@ -1,5 +1,6 @@
 from mpi4py import MPI
 from petsc4py import PETSc
+from petsc4py.PETSc import IntType
 import numpy
 
 from dolfin import (DirichletBC, Function, FunctionSpace, TestFunction,
@@ -7,8 +8,7 @@ from dolfin import (DirichletBC, Function, FunctionSpace, TestFunction,
 from dolfin.cpp.mesh import GhostMode
 from ufl import SpatialCoordinate, dot, dx, grad, pi, sin
 
-from SubDomain import SubDomainData
-from AdditiveSchwarz import AdditiveSchwarz
+from odd import AdditiveSchwarz, SubDomainData, PETScVectorScatter, RMAVectorScatter
 
 
 def boundary(x):
@@ -21,7 +21,7 @@ def solution(values, x):
     values[:, 0] = numpy.sin(numpy.pi*x[:, 0])*numpy.sin(numpy.pi*x[:, 1])
 
 
-n, p = 6, 3
+n, p = 10, 1
 comm = MPI.COMM_WORLD
 
 ghost_mode = GhostMode.shared_vertex if (comm.size > 1) else GhostMode.none
@@ -50,27 +50,42 @@ b.ghostUpdate(addv=PETSc.InsertMode.ADD, mode=PETSc.ScatterMode.REVERSE)
 A = fem.assemble_matrix(a, bcs)
 A.assemble()
 
-
-solver = PETSc.KSP().create(comm)
-solver.setOperators(A)
-solver.setType('gmres')
-solver.setUp()
-# solver.pc.setType('asm')
-# solver.pc.setASMOverlap(1)
-# solver.pc.setUp()
-# local_ksp = solver.pc.getASMSubKSP()[0]
-# local_ksp.setType('preonly')
-# local_ksp.pc.setType('lu')
-# local_ksp.pc.setFactorSolverType('mumps')
 ASM = AdditiveSchwarz(subdomain, A)
-solver.pc.setType('python')
-solver.pc.setPythonContext(ASM)
-solver.setFromOptions()
+ASM.setUp()
 
 
-x = A.getVecLeft()
+local_vec = ASM.vec1.copy()
+local_vec.array = comm.rank + 1
+global_vec = ASM.vec_global.copy()
+global_vec.array = comm.rank + 1
 
-solver.solve(b, x)
+# print(global_vec.array)
 
-u_exact = interpolate(solution, FunctionSpace(mesh, ("Lagrange", p)))
-print(numpy.linalg.norm(u_exact.vector.array - x.array))
+dofmap = ASM.dofmap
+
+scatter1 = PETScVectorScatter(comm, dofmap)
+scatter2 = RMAVectorScatter(comm, dofmap)
+
+time = MPI.Wtime()
+scatter2.reverse(local_vec, global_vec)
+time = MPI.Wtime() - time
+print(comm.rank, time)
+#
+# print(local_vec.array)
+# print(global_vec.array)
+#
+#
+# disp_unit = global_vec.array.itemsize
+# dtype = global_vec.array.dtype
+# window = MPI.Win.Create(global_vec.array, disp_unit=disp_unit, comm=comm)
+# for i, neighbour in enumerate(dofmap.ghost_owners):
+#     offset = dofmap.all_ranges[neighbour]
+#     local_index = dofmap.shared_indices[i] - offset
+#     buffer = numpy.array(1, dtype=dtype)
+#     window.Lock(neighbour, lock_type=MPI.LOCK_SHARED)
+#     window.Get([buffer, MPI.DOUBLE], target_rank=neighbour, target=local_index)
+#     window.Unlock(neighbour)
+#     local_vec.array[dofmap.size_owned + i] = buffer
+# window.Free()
+#
+# print(local_vec.array)
