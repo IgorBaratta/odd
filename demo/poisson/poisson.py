@@ -3,7 +3,7 @@ from petsc4py import PETSc
 import numpy
 
 from dolfin import (DirichletBC, Function, FunctionSpace, TestFunction,
-                    TrialFunction, UnitSquareMesh, fem, interpolate)
+                    TrialFunction, UnitSquareMesh, fem)
 from dolfin.cpp.mesh import GhostMode
 from ufl import SpatialCoordinate, dot, dx, grad, pi, sin
 
