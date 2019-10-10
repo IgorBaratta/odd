@@ -63,5 +63,6 @@ solver.setFromOptions()
 x = A.getVecLeft()
 solver.solve(b, x)
 
-u_exact = interpolate(solution, FunctionSpace(mesh, ("Lagrange", p)))
+u_exact = Function(V)
+u_exact.interpolate(solution)
 print(numpy.linalg.norm(u_exact.vector.array - x.array))

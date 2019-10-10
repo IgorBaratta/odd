@@ -3,7 +3,7 @@ from mpi4py import MPI
 from petsc4py import PETSc
 
 from dolfin import (DirichletBC, Function, FunctionSpace, TestFunction,
-                    TrialFunction, UnitSquareMesh, fem, interpolate)
+                    TrialFunction, UnitSquareMesh, fem)
 from dolfin.cpp.mesh import GhostMode
 from ufl import SpatialCoordinate, dot, dx, grad, pi, sin
 
@@ -64,5 +64,6 @@ x = A.getVecLeft()
 
 solver.solve(b, x)
 
-u_exact = interpolate(solution, FunctionSpace(mesh, ("Lagrange", p)))
+u_exact = Function(V)
+u_exact.interpolate(solution)
 print(numpy.linalg.norm(u_exact.vector.array - x.array))
