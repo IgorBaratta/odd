@@ -5,7 +5,7 @@ from petsc4py import PETSc
 from dolfin import (DirichletBC, Function, FunctionSpace, TestFunction,
                     TrialFunction, UnitSquareMesh, fem)
 from dolfin.cpp.mesh import GhostMode
-from ufl import SpatialCoordinate, dot, dx, grad, pi, sin
+from ufl import SpatialCoordinate, inner, dx, grad, pi, sin
 
 
 def boundary(x):
@@ -32,8 +32,8 @@ v = TestFunction(V)
 x, y = SpatialCoordinate(mesh)
 f = 2*pi**2*sin(pi*x)*sin(pi*y)
 
-a = dot(grad(u), grad(v))*dx
-L = f*v*dx
+a = inner(grad(u), grad(v))*dx
+L = inner(f, v)*dx
 
 # Define boundary condition
 u0 = Function(V)
