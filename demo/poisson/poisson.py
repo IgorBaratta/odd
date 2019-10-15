@@ -16,8 +16,8 @@ def boundary(x):
                                     x[:, 0] < TOL, x[:, 0] > 1.0 - TOL])
 
 
-def solution(values, x):
-    values[:, 0] = numpy.sin(numpy.pi*x[:, 0])*numpy.sin(numpy.pi*x[:, 1])
+def solution(x):
+    return numpy.sin(numpy.pi*x[:, 0])*numpy.sin(numpy.pi*x[:, 1])
 
 
 n, p = 4, 2
