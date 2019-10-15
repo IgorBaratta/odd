@@ -24,7 +24,7 @@ n, p = 4, 2
 comm = MPI.COMM_WORLD
 
 ghost_mode = GhostMode.shared_vertex if (comm.size > 1) else GhostMode.none
-mesh = UnitSquareMesh(comm, 2**n, 2**n, ghost_mode=ghost_mode, diagonal="left")
+mesh = UnitSquareMesh(comm, 2**n, 2**n, ghost_mode=ghost_mode)
 
 V = FunctionSpace(mesh, ("Lagrange", p))
 subdomain = SubDomainData(mesh, V, comm)

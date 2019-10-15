@@ -47,7 +47,6 @@ class AdditiveSchwarz():
         self.solver = PETSc.KSP().create(MPI.COMM_SELF)
         self.scatter_type = ScatterType.PETSc
 
-
     def setUp(self, pc=None):
 
         # Create local working vectors, sequential
@@ -156,16 +155,16 @@ class AdditiveSchwarz():
 
         self.scatter.forward(self.vec1, b)
 
-    def mult(self, mat: PETSc.Mat, x: PETSc.Vec, b: PETSc.Vec):
+    def mult(self, mat: PETSc.Mat, x: PETSc.Vec, y: PETSc.Vec):
+
         # have to zero vector, may contain garbage
-        b.zeroEntries()
+        y.zeroEntries()
 
-        self.scatter.reverse(self.vec1, x)
-
-        self.Ai.mult(self.vec1, self.vec2)
-        self.Di.mult(self.vec2, self.vec1)
-
-        self.scatter.forward(self.vec1, b)
+        # Operate only on local forms of vectors
+        with x.localForm() as x_local:
+            with y.localForm() as y_local:
+                self.scatter.reverse(x_local, x)
+                self.Ai.mult(x_local, y_local)
 
     @staticmethod
     def restritction_matrix(dofmap: DofMap) -> PETSc.Mat:
