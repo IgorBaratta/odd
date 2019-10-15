@@ -4,7 +4,7 @@ from petsc4py.PETSc import IntType
 import numpy
 
 from dolfin import (DirichletBC, Function, FunctionSpace, TestFunction,
-                    TrialFunction, UnitSquareMesh, fem, interpolate)
+                    TrialFunction, UnitSquareMesh, fem)
 from dolfin.cpp.mesh import GhostMode
 from ufl import SpatialCoordinate, dot, dx, grad, pi, sin
 
@@ -17,8 +17,8 @@ def boundary(x):
                                     x[:, 0] < TOL, x[:, 0] > 1.0 - TOL])
 
 
-def solution(values, x):
-    values[:, 0] = numpy.sin(numpy.pi*x[:, 0])*numpy.sin(numpy.pi*x[:, 1])
+def solution(x):
+    return numpy.sin(numpy.pi*x[:, 0])*numpy.sin(numpy.pi*x[:, 1])
 
 
 n, p = 10, 1
