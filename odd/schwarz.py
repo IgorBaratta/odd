@@ -23,7 +23,7 @@ class AdditiveSchwarz():
         self.comm = data.comm
 
         # Restricted Additive Schwarz is the default type
-        self._type = SMType.restricted
+        self.pc_type = SMType.additive
 
         # set preconditioner state
         self.state = False
@@ -63,6 +63,7 @@ class AdditiveSchwarz():
         # default it doesn't exist
         if not self.solver.type or self.solver.comm != MPI.COMM_SELF:
             self.solver = PETSc.KSP().create(MPI.COMM_SELF)
+            self.solver.setOptionsPrefix("localsolver_")
             self.solver.setOperators(self.Ai)
             self.solver.setType('preonly')
             self.solver.pc.setType('lu')
@@ -79,41 +80,26 @@ class AdditiveSchwarz():
         # Define state of preconditioner, True means ready to use
         self.state = True
 
-    def global_matrix(self) -> PETSc.Mat:
+    @classmethod
+    def global_matrix(obj, ASM) -> PETSc.Mat:
         '''
         Return the unassembled global matrix of type python.
         '''
-        if self.state:
+        if ASM.state:
             # Define global unassembled global Matrix A
-            self.A = PETSc.Mat().create()
-            self.A.setSizes(self.sizes)
-            self.A.setType(self.A.Type.PYTHON)
-            self.A.setPythonContext(self)
-            self.A.setUp()
-            return self.A
+            A = PETSc.Mat().create()
+            A.setSizes(ASM.sizes)
+            A.setType(A.Type.PYTHON)
+            A.setPythonContext(ASM)
+            A.setUp()
+            return A
         else:
             raise Exception('Matrix in wrong state.'
                             'Please setUP preconditioner first.')
 
-    def global_vector(self, bi: PETSc.Vec, destroy=False) -> PETSc.Vec:
-        # TODO: Avoid making unecessary data duplication
-        # this may not be working very well....need some testing
-        if self.state:
-            if bi.comm.size == 1:
-                b = self.vec_global.duplicate()
-                self.vector_scatter(bi, b,
-                                    PETSc.InsertMode.INSERT_VALUES,
-                                    PETSc.ScatterMode.SCATTER_FORWARD)
-                return b
-            else:
-                raise Exception('Should be a sequential vector')
-        else:
-            raise Exception('Preconditioner in wrong state.'
-                            'Please setUP preconditioner first.')
-
     @property
     def type(self):
-        return self._type
+        return self.pc_type
 
     @property
     def sizes(self):
@@ -121,9 +107,9 @@ class AdditiveSchwarz():
         Ng = self.dofmap.size_global
         return ((N_owned, Ng), (N_owned, Ng))
 
-    def apply(self, pc: PETSc.PC, x: PETSc.Vec, b: PETSc.Vec):
+    def apply(self, pc: PETSc.PC, x: PETSc.Vec, y: PETSc.Vec):
         """
-        Pure PETSc implementation of the restricted additve schwarz
+        y = Sum_i^N R Ai^-1 R^T xi
 
         Parameters
         ==========
@@ -131,34 +117,38 @@ class AdditiveSchwarz():
         pc: This argument is not called within the function but it
             belongs to the standard way of calling a preconditioner.
 
-        x : petsc.Vec
-            The vector to which the preconditioner is to be applied.
+        x : Global distributed vector to which the preconditioner is to be applied.
 
-        b : petsc.Vec
-            The vector that stores the result of the preconditioning
-            operation.
+        y : Global distributed vector  that stores the result
+            of the preconditioning operation.
 
         """
-        # have to zero vector, may contain garbage
-        b.zeroEntries()
 
-        self.scatter.reverse(self.vec1, x)
+        # Operate only on local forms of ghosted vectors
+        with x.localForm() as x_local:
+            if not x_local:
+                raise RuntimeError('X vector is not ghosted')
 
-        self.solver.solve(self.vec1, self.vec2)
+            # Update ghosts and overlap dofs
+            self.scatter.reverse(x_local, x)
+            with y.localForm() as y_local:
+                if not y_local:
+                    raise RuntimeError('Y vector is not ghosted')
 
-        if self.type == SMType.restricted:
-            self.Di.mult(self.vec2, self.vec1)
-        elif self.type == SMType.additive:
-            self.vec1.array = self.vec2.array
-        else:
-            raise RuntimeError("Not implemented")
+                if self.type == SMType.restricted:
+                    work_vec = x_local.duplicate()
+                    self.solver.solve(x_local, work_vec)
+                    self.Di.mult(work_vec, y_local)
+                elif self.type == SMType.additive:
+                    self.solver.solve(x_local, y_local)
+                else:
+                    raise RuntimeError("Not implemented")
 
-        self.scatter.forward(self.vec1, b)
+                # Apply ghosts
+                self.scatter.forward(y_local, y)
 
     def mult(self, mat: PETSc.Mat, x: PETSc.Vec, y: PETSc.Vec):
-
-        # have to zero vector, may contain garbage
-        y.zeroEntries()
+        # y <- Ax
 
         # Operate only on local forms of vectors
         with x.localForm() as x_local:
@@ -170,7 +160,8 @@ class AdditiveSchwarz():
     def restritction_matrix(dofmap: DofMap) -> PETSc.Mat:
         """
         Explicitely construct the local restriction matrix for
-        the current subdomain.''
+        the current subdomain.
+        Good for testing.
         """
 
         # number of non-zeros per row
@@ -203,6 +194,7 @@ class AdditiveSchwarz():
         """
         Return the assembled partition of unit matrix for the current
         subdomain/process.
+        Good for testing.
         """
 
         # number of non-zeros per row

@@ -7,7 +7,7 @@ from ufl import SpatialCoordinate, inner, dx, grad
 from odd import AdditiveSchwarz, SubDomainData, ScatterType
 
 
-n, p = 12, 3
+n, p = 5, 1
 comm = MPI.COMM_WORLD
 
 ghost_mode = GhostMode.shared_vertex if (comm.size > 1) else GhostMode.none
@@ -31,23 +31,19 @@ A = fem.assemble_matrix(a)
 A.assemble()
 
 ASM = AdditiveSchwarz(subdomain, A)
-ASM.scatter_type = ScatterType.RMA
+ASM.scatter_type = ScatterType.PETSc
 ASM.setUp()
-
-
-x = b.duplicate()
-y = x.duplicate()
-
 t1 = Timer("xxxxx - ASM")
+x = b.duplicate()
 ASM.mult(None, b, x)
 t1.stop()
 
 t2 = Timer("xxxxx- PETSc")
+y = b.duplicate()
 A.mult(b, y)
 t2.stop()
 
-# print(y.array)
 
-print(numpy.allclose(x, y))
+assert(numpy.allclose(x, y))
 
 list_timings([TimingType.wall])

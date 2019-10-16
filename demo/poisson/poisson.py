@@ -5,6 +5,7 @@ import numpy
 from dolfin import (DirichletBC, Function, FunctionSpace, TestFunction,
                     TrialFunction, UnitSquareMesh, fem)
 from dolfin.cpp.mesh import GhostMode
+from dolfin.common import Timer, list_timings, TimingType
 from ufl import SpatialCoordinate, inner, dx, grad, pi, sin
 
 from odd import AdditiveSchwarz, SubDomainData
@@ -20,7 +21,7 @@ def solution(x):
     return numpy.sin(numpy.pi*x[:, 0])*numpy.sin(numpy.pi*x[:, 1])
 
 
-n, p = 4, 2
+n, p = 8, 2
 comm = MPI.COMM_WORLD
 
 ghost_mode = GhostMode.shared_vertex if (comm.size > 1) else GhostMode.none
@@ -49,20 +50,25 @@ b.ghostUpdate(addv=PETSc.InsertMode.ADD, mode=PETSc.ScatterMode.REVERSE)
 A = fem.assemble_matrix(a, bcs)
 A.assemble()
 
-
-solver = PETSc.KSP().create(comm)
-solver.setOperators(A)
-solver.setType('gmres')
-solver.setUp()
 ASM = AdditiveSchwarz(subdomain, A)
 ASM.setUp()
-solver.pc.setType('python')
-solver.pc.setPythonContext(ASM)
-solver.setFromOptions()
 
-x = A.getVecLeft()
-solver.solve(b, x)
+ksp = PETSc.KSP().create(comm)
+ksp.setOperators(A)
+ksp.setType('gmres')
+ksp.pc.setType('python')
+ksp.pc.setPythonContext(ASM)
+ksp.setFromOptions()
+
+t1 = Timer("xxxxx - Solve")
+x = b.duplicate()
+ksp.solve(b, x)
+t1.stop()
 
 u_exact = Function(V)
 u_exact.interpolate(solution)
-print(numpy.linalg.norm(u_exact.vector.array - x.array))
+if comm.rank == 0:
+    print(numpy.linalg.norm(u_exact.vector.array - x.array))
+    print(ksp.its)
+
+list_timings([TimingType.wall])

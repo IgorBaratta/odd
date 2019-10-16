@@ -4,6 +4,7 @@ from petsc4py import PETSc
 
 from dolfin import (DirichletBC, Function, FunctionSpace, TestFunction,
                     TrialFunction, UnitSquareMesh, fem)
+from dolfin.common import Timer, list_timings, TimingType
 from dolfin.cpp.mesh import GhostMode
 from ufl import SpatialCoordinate, inner, dx, grad, pi, sin
 
@@ -18,7 +19,7 @@ def solution(x):
     return numpy.sin(numpy.pi*x[:, 0])*numpy.sin(numpy.pi*x[:, 1])
 
 
-n, p = 4, 2
+n, p = 8, 2
 comm = MPI.COMM_WORLD
 
 ghost_mode = GhostMode.shared_vertex if (comm.size > 1) else GhostMode.none
@@ -61,8 +62,15 @@ local_ksp.pc.setFactorSolverType('mumps')
 
 
 x = A.getVecLeft()
+
+t1 = Timer("xxxxx - Solve")
 solver.solve(b, x)
+t1.stop()
+
+print(solver.its)
 
 u_exact = Function(V)
 u_exact.interpolate(solution)
 print(numpy.linalg.norm(u_exact.vector.array - x.array))
+
+list_timings([TimingType.wall])
