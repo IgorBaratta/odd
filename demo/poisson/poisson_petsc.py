@@ -2,21 +2,20 @@ import numpy
 from mpi4py import MPI
 from petsc4py import PETSc
 
-from dolfin import (DirichletBC, Function, FunctionSpace, TestFunction,
-                    TrialFunction, UnitSquareMesh, fem)
+from dolfin import (DirichletBC, Function, FunctionSpace, UnitSquareMesh, fem)
 from dolfin.common import Timer, list_timings, TimingType
 from dolfin.cpp.mesh import GhostMode
-from ufl import SpatialCoordinate, inner, dx, grad, pi, sin
+from ufl import SpatialCoordinate, TestFunction, TrialFunction, inner, dx, grad, pi, sin
 
 
 def boundary(x):
     TOL = numpy.finfo(float).eps
-    return numpy.logical_or.reduce([x[:, 1] < TOL, x[:, 1] > 1.0 - TOL,
-                                    x[:, 0] < TOL, x[:, 0] > 1.0 - TOL])
+    return numpy.logical_or.reduce([x[1] < TOL, x[1] > 1.0 - TOL,
+                                    x[0] < TOL, x[0] > 1.0 - TOL])
 
 
 def solution(x):
-    return numpy.sin(numpy.pi*x[:, 0])*numpy.sin(numpy.pi*x[:, 1])
+    return numpy.sin(numpy.pi*x[0])*numpy.sin(numpy.pi*x[1])
 
 
 n, p = 8, 2

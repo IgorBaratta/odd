@@ -37,4 +37,4 @@ setup(name="odd",
         'Programming Language :: Python :: 3 :: Only',
         ],
 
-      install_requires=["dolfin", "numba", "mpi4py", "petsc4py"])
+      install_requires=["numba", "mpi4py", "petsc4py"])

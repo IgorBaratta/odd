@@ -1,4 +1,4 @@
-from dolfin.function import functionspace
+from dolfin.function import FunctionSpace
 from petsc4py.PETSc import IntType
 # from mpi4py import MPI
 import numpy
@@ -7,7 +7,7 @@ import numpy
 class DofMap:
     """ TODO : class docstring """
     def __init__(self,
-                 V: functionspace.FunctionSpace):
+                 V: FunctionSpace):
         """ All communication within this class should
         be done at __init__"""
         self._dofmap = V.dofmap
