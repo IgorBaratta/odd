@@ -128,7 +128,6 @@ class AdditiveSchwarz():
         with x.localForm() as x_local:
             if not x_local:
                 raise RuntimeError('X vector is not ghosted')
-
             # Update ghosts and overlap dofs
             self.scatter.reverse(x_local, x)
             with y.localForm() as y_local:

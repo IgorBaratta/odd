@@ -49,14 +49,14 @@ A.assemble()
 
 solver = PETSc.KSP().create(comm)
 solver.setOperators(A)
-solver.setType('gmres')
+solver.setType(PETSc.KSP.Type.GMRES)
 solver.setUp()
-solver.pc.setType('asm')
+solver.pc.setType(PETSc.PC.Type.ASM)
 solver.pc.setASMOverlap(1)
 solver.pc.setUp()
 local_ksp = solver.pc.getASMSubKSP()[0]
-local_ksp.setType('preonly')
-local_ksp.pc.setType('lu')
+local_ksp.setType(PETSc.KSP.Type.PREONLY)
+local_ksp.pc.setType(PETSc.PC.Type.LU)
 local_ksp.pc.setFactorSolverType('mumps')
 
 
@@ -66,10 +66,14 @@ t1 = Timer("xxxxx - Solve")
 solver.solve(b, x)
 t1.stop()
 
-print(solver.its)
-
 u_exact = Function(V)
 u_exact.interpolate(solution)
-print(numpy.linalg.norm(u_exact.vector.array - x.array))
 
-list_timings([TimingType.wall])
+if comm.rank == 0:
+    print("==================================")
+    print("Number of Subdomains: ", comm.size)
+    print("Error Norm:", numpy.linalg.norm(u_exact.vector.array - x.array))
+    print("Number of Iterations:", solver.its)
+    print("==================================")
+
+list_timings(MPI.COMM_WORLD, [TimingType.wall])

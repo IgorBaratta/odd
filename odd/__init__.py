@@ -19,3 +19,4 @@ from .dofmap import DofMap
 from .schwarz import AdditiveSchwarz, SMType
 from .subdomain import SubDomainData
 from .vector_scatter import PETScVectorScatter, RMAVectorScatter, ScatterType
+from .assemble import assemble_vector
