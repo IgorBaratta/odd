@@ -1,3 +1,9 @@
+# Copyright (C) 2019 Igor A. Baratta
+#
+# This file is part of odd
+#
+# SPDX-License-Identifier:    LGPL-3.0-or-later
+
 from mpi4py import MPI
 from dolfin import Function, FunctionSpace, cpp
 from .dofmap import DofMap

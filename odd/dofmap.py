@@ -1,6 +1,11 @@
+# Copyright (C) 2019 Igor A. Baratta
+#
+# This file is part of odd
+#
+# SPDX-License-Identifier:    LGPL-3.0-or-later
+
 from dolfin.function import FunctionSpace
 from petsc4py.PETSc import IntType
-# from mpi4py import MPI
 import numpy
 
 

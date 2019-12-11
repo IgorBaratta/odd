@@ -1,3 +1,9 @@
+# Copyright (C) 2019 Igor A. Baratta
+#
+# This file is part of odd
+#
+# SPDX-License-Identifier:    LGPL-3.0-or-later
+
 import dolfin
 import ufl
 import numpy
@@ -18,19 +24,27 @@ def assemble_vector(L: ufl.Form):
     Assemble linear form into a new PETSc vector.
     """
     ufc_form = dolfin.jit.ffc_jit(L)
-    kernel = ufc_form.create_cell_integral(-1).tabulate_tensor
-
     V = dolfin.fem.assemble._create_cpp_form(L).function_space(0)
-    c = V.mesh.topology.connectivity(2, 0).connections()
-    pos = V.mesh.topology.connectivity(2, 0).pos()
+    b = dolfin.cpp.la.create_vector(V.dofmap.index_map)
+    dim = V.mesh.geometry.dim
     geom = V.mesh.geometry.points
     dofs = V.dofmap.dof_array()
     dofs_per_cell = V.dofmap.dof_layout.num_dofs
 
-    b = dolfin.cpp.la.create_vector(V.dofmap.index_map)
     with b.localForm() as b_local:
         b_local.set(0.0)
-        assemble_vector_kernel(numpy.asarray(b), kernel, c, pos, geom, dofs, dofs_per_cell)
+        if ufc_form.num_custom_integrals > 0:
+            raise NotImplementedError
+        if ufc_form.num_exterior_facet_integrals > 0:
+            kernel = ufc_form.create_exterior_facet_integral(-1).tabulate_tensor
+            c = V.mesh.topology.connectivity(dim, 0).connections()
+        if ufc_form.num_interior_facet_integrals > 0:
+            raise NotImplementedError
+        if ufc_form.num_cell_integrals > 0:
+            kernel = ufc_form.create_cell_integral(-1).tabulate_tensor
+            c = V.mesh.topology.connectivity(dim, 0).connections()
+            pos = V.mesh.topology.connectivity(dim, 0).pos()
+            assemble_vector_kernel(numpy.asarray(b), kernel, c, pos, geom, dofs, dofs_per_cell)
 
     return b
 

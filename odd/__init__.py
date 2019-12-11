@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 # Copyright (C) 2019 Igor A. Baratta
 #
 # This file is part of odd
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
+
 """Main module for odd"""
 
 # Initialise PETSc/MPI
