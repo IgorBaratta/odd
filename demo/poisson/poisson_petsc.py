@@ -2,9 +2,11 @@ import numpy
 from mpi4py import MPI
 from petsc4py import PETSc
 
-from dolfin import (DirichletBC, Function, FunctionSpace, UnitSquareMesh, fem)
-from dolfin.common import Timer, list_timings, TimingType
-from dolfin.cpp.mesh import GhostMode
+from dolfinx import (DirichletBC, Function, FunctionSpace, UnitSquareMesh, fem)
+from dolfinx.common import Timer, list_timings, TimingType
+from dolfinx.fem import locate_dofs_topological
+from dolfinx.mesh import compute_marked_boundary_entities
+from dolfinx.cpp.mesh import GhostMode
 from ufl import SpatialCoordinate, TestFunction, TrialFunction, inner, dx, grad, pi, sin
 
 
@@ -38,12 +40,13 @@ L = inner(f, v)*dx
 # Define boundary condition
 u0 = Function(V)
 u0.vector.set(0.0)
-bcs = [DirichletBC(V, u0, boundary)]
+facets = compute_marked_boundary_entities(mesh, 1, boundary)
+bcs = DirichletBC(u0, locate_dofs_topological(V, 1, facets))
 
 b = fem.assemble_vector(L)
-fem.apply_lifting(b, [a], [bcs])
+fem.apply_lifting(b, [a], [[bcs]])
 b.ghostUpdate(addv=PETSc.InsertMode.ADD, mode=PETSc.ScatterMode.REVERSE)
-A = fem.assemble_matrix(a, bcs)
+A = fem.assemble_matrix(a, [bcs])
 A.assemble()
 
 

@@ -1,8 +1,8 @@
 from mpi4py import MPI
 import numpy
-from dolfin import (FunctionSpace, TestFunction, TrialFunction, UnitSquareMesh, fem)
-from dolfin.common import Timer, list_timings, TimingType
-from dolfin.cpp.mesh import GhostMode
+from dolfinx import (FunctionSpace, TestFunction, TrialFunction, UnitSquareMesh, fem)
+from dolfinx.common import Timer, list_timings, TimingType
+from dolfinx.cpp.mesh import GhostMode
 from ufl import SpatialCoordinate, inner, dx, grad
 from odd import AdditiveSchwarz, SubDomainData, ScatterType
 

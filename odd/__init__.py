@@ -7,7 +7,7 @@
 """Main module for odd"""
 
 # Initialise PETSc/MPI
-from dolfin import cpp
+from dolfinx import cpp
 import sys
 cpp.common.SubSystemsManager.init_logging(sys.argv)
 del sys

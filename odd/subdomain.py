@@ -5,7 +5,7 @@
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
 from mpi4py import MPI
-from dolfin import Function, FunctionSpace, cpp
+from dolfinx import Function, FunctionSpace, cpp
 from .dofmap import DofMap
 
 
@@ -15,7 +15,7 @@ class SubDomainData():
                  V: FunctionSpace,
                  global_comm: MPI.Intracomm):
 
-        # Store dolfin FunctionSpace object
+        # Store dolfinx FunctionSpace object
         self._V = V
 
         # Store MPI communicator

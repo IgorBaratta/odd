@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
-from dolfin.function import FunctionSpace
+from dolfinx.function import FunctionSpace
 from petsc4py.PETSc import IntType
 import numpy
 
