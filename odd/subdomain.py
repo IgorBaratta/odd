@@ -24,10 +24,6 @@ class SubDomainData():
         # Create domain decomposition DofMap
         self.dofmap = DofMap(V)
 
-    def global_vec(self):
-        u = Function(self._V)
-        return u.vector.copy()
-
     @property
     def id(self):
         return self.comm.rank
