@@ -38,14 +38,14 @@ def assemble_vector(L: ufl.Form)->PETSc.Vec:
     dim = mesh.topology.dim
     num_cells = mesh.topology.size(dim)
 
-    # Define active cells
+    # Define active facets
     active_cells = numpy.arange(num_cells)
     int_cell = dolfinx.cpp.fem.FormIntegrals.Type.cell
 
     # Define active facets
-    on_boundary = mesh.topology.on_boundary
-    active_facets = numpy.where(on_boundary)[0]
-    int_facet = dolfinx.cpp.fem.FormIntegrals.Type.exterior_facet
+    # on_boundary = mesh.topology.on_boundary
+    # active_facets = numpy.where(on_boundary)[0]
+    # int_facet = dolfinx.cpp.fem.FormIntegrals.Type.exterior_facet
 
     _L.set_active_entities(int_cell, 0, active_cells)
     # _L.set_active_entities(int_facet, 0, active_facets)

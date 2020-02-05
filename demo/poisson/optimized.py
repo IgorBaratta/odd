@@ -3,6 +3,7 @@ from dolfinx.cpp.mesh import CellType, GhostMode
 import dolfinx
 import odd
 import ufl
+import numpy
 from mpi4py import MPI
 from petsc4py import PETSc
 from dolfinx.common import Timer, list_timings, TimingType
@@ -12,8 +13,8 @@ comm = MPI.COMM_WORLD
 local_comm = MPI.COMM_SELF
 
 ghost_mode = GhostMode.shared_vertex if comm.size > 1 else GhostMode.none
-mesh = UnitSquareMesh(comm, 400, 400, CellType.triangle, ghost_mode)
-V = FunctionSpace(mesh, ("Lagrange", 4))
+mesh = UnitSquareMesh(comm, 10, 10, CellType.triangle, ghost_mode)
+V = FunctionSpace(mesh, ("Lagrange", 3))
 
 u = ufl.TrialFunction(V)
 v = ufl.TestFunction(V)
@@ -36,15 +37,42 @@ t2.stop()
 print((b - b1).norm())
 
 a = ufl.inner(ufl.grad(u), ufl.grad(v))*ufl.dx
-t3 = Timer("xxxxx - Matrix")
-A = dolfinx.fem.assemble_matrix(a)
-A.assemble()
-t3.stop()
 
-t4 = Timer("xxxxx - Matrix Local")
+
+def _create_cpp_form(form):
+    """Recursively look for ufl.Forms and convert to dolfinx.fem.Form, otherwise
+    return form argument
+    """
+    if isinstance(form, dolfinx.Form):
+        return form._cpp_object
+    elif isinstance(form, ufl.Form):
+        return dolfinx.Form(form)._cpp_object
+    elif isinstance(form, (tuple, list)):
+        return list(map(lambda sub_form: _create_cpp_form(sub_form), form))
+    return form
+
+
+_a = _create_cpp_form(a)
+dim = mesh.topology.dim
+num_cells = mesh.topology.size(dim)
+active_cells = numpy.arange(num_cells)
+int_cell = dolfinx.cpp.fem.FormIntegrals.Type.cell
+A = dolfinx.cpp.fem.create_matrix(_a)
+A.assemble()
 indices = V.dofmap.index_map.indices(False).astype(PETSc.IntType)
 is_local = PETSc.IS().createGeneral(indices)
 Ai = A.createSubMatrices(is_local)[0]
-t4.stop()
+Ai.setUp()
 
-list_timings(comm, [TimingType.wall])
+ddm_dofmap = odd.DofMap(V)
+
+N = ddm_dofmap.size_local
+self_comm = MPI.COMM_SELF
+
+Ai = PETSc.Mat().create(self_comm)
+Ai.setType('seqaij')
+Ai.setSizes((N, N))
+Ai.setPreallocationNNZ(10)
+# Ai.setVal
+# dolfinx.cpp.fem.assemble_matrix(Ai, _a, [])
+# print(A.type)

@@ -5,6 +5,7 @@ __pycache__/
 
 # C extensions
 *.so
+_petsc*
 
 # Distribution / packaging
 .Python
