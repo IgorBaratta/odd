@@ -11,7 +11,7 @@ import numba
 import numba.cffi_support
 from petsc4py import PETSc
 import cffi
-from petsc_utils import MatSetValues_ctypes as MatSetValues
+from .petsc_utils import MatSetValues_api as MatSetValues
 
 
 def _create_cpp_form(form):
@@ -36,6 +36,8 @@ numba.cffi_support.register_type(ffi.typeof('float _Complex'), numba.types.compl
 def assemble_matrix(a):
     _a = _create_cpp_form(a)
     A = dolfinx.cpp.fem.create_matrix(_a)
+    A.zeroEntries()
+    mode = PETSc.InsertMode.ADD
     ufc_form = dolfinx.jit.ffcx_jit(a)
     mesh = _a.mesh()
 
@@ -69,8 +71,9 @@ def assemble_matrix(a):
         facets_on_boundary = mesh.topology.on_boundary(tdim - 1)
         active_facets = numpy.where(facets_on_boundary)[0]
 
-    # @numba.njit
-    def assemble_cells(kernel):
+    @numba.njit(cache=False)
+    def assemble_cells(kernel, mat):
+        # Cannot cache compiled function "assemble_cells" as it uses outer variables in a closure
         active_cells = numpy.arange(num_cells)
         Ae = numpy.zeros((num_dofs_per_cell0, num_dofs_per_cell1), dtype=PETSc.ScalarType)
         orientation = numpy.array([0], dtype=PETSc.IntType)
@@ -82,6 +85,7 @@ def assemble_matrix(a):
             for i in range(num_dofs_g):
                 for j in range(gdim):
                     coordinate_dofs[i, j] = points[cell_g[pos_g[cell_index] + i], j]
+
             Ae.fill(0.0)
             kernel(ffi.from_buffer(Ae), ffi.from_buffer(coeffs),
                    ffi.from_buffer(constants),
@@ -92,12 +96,14 @@ def assemble_matrix(a):
                               cell_index*num_dofs_per_cell0 + num_dofs_per_cell0]
             cols = dof_array1[cell_index*num_dofs_per_cell1:
                               cell_index*num_dofs_per_cell1 + num_dofs_per_cell1]
-            # A.setValuesLocal(rows, cols, Ae, PETSc.InsertMode.ADD)
-            MatSetValues(A.handle, num_dofs_per_cell0, rows.ctypes, num_dofs_per_cell1, cols.ctypes,
-                         Ae.ctypes, PETSc.InsertMode.ADD)
 
-    # @numba.jit
-    def assemble_facets(kernel):
+            MatSetValues(mat, num_dofs_per_cell0, ffi.from_buffer(rows),
+                         num_dofs_per_cell1, ffi.from_buffer(cols),
+                         ffi.from_buffer(Ae), mode)
+
+    @numba.njit(cache=False)
+    def assemble_facets(kernel, mat):
+        # Cannot cache compiled function "assemble_facets" as it uses outer variables in a closure
         Ae = numpy.zeros((num_dofs_per_cell0, num_dofs_per_cell1), dtype=PETSc.ScalarType)
         orientation = numpy.array([0], dtype=PETSc.IntType)
         coeffs = numpy.zeros(1, dtype=PETSc.ScalarType)
@@ -126,33 +132,19 @@ def assemble_matrix(a):
                               cell_index*num_dofs_per_cell0 + num_dofs_per_cell0]
             cols = dof_array1[cell_index*num_dofs_per_cell1:
                               cell_index*num_dofs_per_cell1 + num_dofs_per_cell1]
-            A.setValuesLocal(rows, cols, Ae, PETSc.InsertMode.ADD)
+
+            MatSetValues(mat, num_dofs_per_cell0, ffi.from_buffer(rows),
+                         num_dofs_per_cell1, ffi.from_buffer(cols),
+                         ffi.from_buffer(Ae), mode)
 
     if num_cell_int:
         cell_integral = ufc_form.create_cell_integral(-1)
         kernel = cell_integral.tabulate_tensor
-        assemble_cells(kernel)
+        mat = A.handle
+        assemble_cells(kernel, mat)
     if num_facet_int:
         facet_integral = ufc_form.create_exterior_facet_integral(-1)
         kernel = facet_integral.tabulate_tensor
-        assemble_facets(kernel)
-
+        mat = A.handle
+        assemble_facets(kernel, mat)
     return A
-
-
-mesh = dolfinx.UnitSquareMesh(dolfinx.MPI.comm_self, 100, 100)
-V = dolfinx.FunctionSpace(mesh, ("Lagrange", 3))
-
-u = ufl.TrialFunction(V)
-v = ufl.TestFunction(V)
-k = 10 * numpy.pi
-
-a = ufl.inner(ufl.grad(u), ufl.grad(v))*ufl.dx + k * ufl.inner(u, v)*ufl.dx +\
-    1j * ufl.inner(u, v) * ufl.ds
-
-A = assemble_matrix(a)
-A.assemble()
-B = dolfinx.fem.assemble_matrix(a)
-B.assemble()
-
-print((A-B).norm())
