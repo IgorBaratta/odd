@@ -10,6 +10,11 @@ run_demo_mpi: &run_demo_mpi
             mpirun -n 3 python3 poisson.py
             mpirun -n 3 python3 poisson_petsc.py
 
+run_demo_mpi: &run_test_mpi
+  name: run tests MPI
+  command: |
+            cd tests
+            mpirun -n 3 python3 -m pytest .
 
 version: 2
 jobs:
