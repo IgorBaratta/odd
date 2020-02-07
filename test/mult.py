@@ -1,9 +1,9 @@
 from mpi4py import MPI
 import numpy
-from dolfinx import (FunctionSpace, TestFunction, TrialFunction, UnitSquareMesh, fem)
+from dolfinx import (FunctionSpace, UnitSquareMesh, fem)
 from dolfinx.common import Timer, list_timings, TimingType
 from dolfinx.cpp.mesh import GhostMode
-from ufl import SpatialCoordinate, inner, dx, grad
+from ufl import TrialFunction, TestFunction, SpatialCoordinate, inner, dx, grad
 from odd import AdditiveSchwarz, SubDomainData, ScatterType
 
 
@@ -44,6 +44,6 @@ A.mult(b, y)
 t2.stop()
 
 
-assert(numpy.allclose(x, y))
+assert numpy.allclose(x, y)
 
-list_timings([TimingType.wall])
+list_timings(MPI.COMM_WORLD, [TimingType.wall])

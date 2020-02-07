@@ -5,7 +5,6 @@
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
 import dolfinx
-import ufl
 import numpy
 import numba
 import numba.cffi_support
@@ -13,21 +12,9 @@ from mpi4py import MPI
 from petsc4py import PETSc
 import cffi
 from .petsc_utils import MatSetValues, MatSetValuesLocal
-import time
 
 
-def _create_cpp_form(form):
-    """Recursively look for ufl.Forms and convert to dolfinx.fem.Form, otherwise
-    return form argument
-    """
-    if isinstance(form, dolfinx.Form):
-        return form._cpp_object
-    elif isinstance(form, ufl.Form):
-        return dolfinx.Form(form)._cpp_object
-    elif isinstance(form, (tuple, list)):
-        raise NotImplementedError
-    return form
-
+_create_cpp_form = dolfinx.fem.assemble._create_cpp_form
 
 # CFFI - register complex types
 ffi = cffi.FFI()
@@ -36,7 +23,7 @@ numba.cffi_support.register_type(ffi.typeof('float _Complex'), numba.types.compl
 
 
 def create_matrix(a, type="standard"):
-    _a = dolfinx.fem._create_cpp_form(a)
+    _a = _create_cpp_form(a)
 
     if type == "standard":
         A = dolfinx.cpp.fem.create_matrix(_a)
@@ -54,11 +41,8 @@ def create_matrix(a, type="standard"):
         num_dofs_per_cell1 = dofmap1.dof_layout.num_dofs
 
         # Number of nonzeros per row
-        start = time.time()
         nnz = sparsity_pattern((dof_array0, num_dofs_per_cell0),
                                (dof_array1, num_dofs_per_cell1))
-        end = time.time()
-        print("Time (C++, pass 1):", end - start)
         size = nnz.size
         A = PETSc.Mat().createAIJ([size, size], nnz=nnz, comm=MPI.COMM_SELF)
         A.setUp()

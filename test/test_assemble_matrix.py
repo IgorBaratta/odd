@@ -5,7 +5,7 @@ import odd
 
 
 def test_assemble_matrix():
-    mesh = dolfinx.UnitSquareMesh(dolfinx.MPI.comm_world, 100, 100)
+    mesh = dolfinx.UnitSquareMesh(dolfinx.MPI.comm_world, 64, 64)
     V = dolfinx.FunctionSpace(mesh, ("Lagrange", 1))
 
     u = ufl.TrialFunction(V)
@@ -20,7 +20,7 @@ def test_assemble_matrix():
     A.assemble()
 
     B = odd.create_matrix(a, "standard")
-    odd.assemble_matrix(a, A)
+    odd.assemble_matrix(a, B)
     B.assemble()
 
     C = dolfinx.fem.assemble_matrix(a)
