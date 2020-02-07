@@ -5,6 +5,7 @@
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
 from dolfinx.function import FunctionSpace
+import dolfinx
 from petsc4py.PETSc import IntType
 import numpy
 
@@ -26,6 +27,9 @@ class DofMap:
     @property
     def id(self):
         return self.comm.rank
+
+    def create_vector(self):
+        return dolfinx.cpp.la.create_vector(self._index_map)
 
     @property
     def indices(self) -> numpy.ndarray:

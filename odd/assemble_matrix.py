@@ -9,9 +9,11 @@ import ufl
 import numpy
 import numba
 import numba.cffi_support
+from mpi4py import MPI
 from petsc4py import PETSc
 import cffi
-from .petsc_utils import MatSetValues_api as MatSetValues
+from .petsc_utils import MatSetValues, MatSetValuesLocal
+import time
 
 
 def _create_cpp_form(form):
@@ -33,11 +35,62 @@ numba.cffi_support.register_type(ffi.typeof('double _Complex'), numba.types.comp
 numba.cffi_support.register_type(ffi.typeof('float _Complex'), numba.types.complex64)
 
 
-def assemble_matrix(a):
+def create_matrix(a, type="standard"):
+    _a = dolfinx.fem._create_cpp_form(a)
+
+    if type == "standard":
+        A = dolfinx.cpp.fem.create_matrix(_a)
+        A.zeroEntries()
+        return A
+
+    elif type == "communication-less":
+        dofmap0 = _a.function_space(0).dofmap
+        dofmap1 = _a.function_space(1).dofmap
+
+        dof_array0 = dofmap0.dof_array()
+        dof_array1 = dofmap1.dof_array()
+
+        num_dofs_per_cell0 = dofmap0.dof_layout.num_dofs
+        num_dofs_per_cell1 = dofmap1.dof_layout.num_dofs
+
+        # Number of nonzeros per row
+        start = time.time()
+        nnz = sparsity_pattern((dof_array0, num_dofs_per_cell0),
+                               (dof_array1, num_dofs_per_cell1))
+        end = time.time()
+        print("Time (C++, pass 1):", end - start)
+        size = nnz.size
+        A = PETSc.Mat().createAIJ([size, size], nnz=nnz, comm=MPI.COMM_SELF)
+        A.setUp()
+        A.zeroEntries()
+
+        return A
+
+
+@numba.njit
+def sparsity_pattern(dofmap0, dofmap1):
+    '''
+    Return an estimated number of non zeros per row.
+    '''
+    # TODO: improve sparsity pattern
+    # Based on cell integral pattern
+    (dof_array0, ndofs0) = dofmap0
+    (dof_array1, ndofs1) = dofmap1
+    num_cells = int(dof_array0.size/ndofs0)
+
+    num_dofs = numpy.unique(dof_array0)
+    pattern = numpy.zeros_like(num_dofs)
+
+    for cell_index in range(num_cells):
+        cell_dof0 = dof_array0[cell_index*ndofs0: cell_index*ndofs0 + ndofs0]
+        for dof0 in cell_dof0:
+                pattern[dof0] = pattern[dof0] + ndofs1
+    return pattern
+
+
+def assemble_matrix(a, A):
     _a = _create_cpp_form(a)
-    A = dolfinx.cpp.fem.create_matrix(_a)
-    A.zeroEntries()
-    mode = PETSc.InsertMode.ADD
+    inssert_mode = PETSc.InsertMode.ADD
     ufc_form = dolfinx.jit.ffcx_jit(a)
     mesh = _a.mesh()
 
@@ -72,7 +125,7 @@ def assemble_matrix(a):
         active_facets = numpy.where(facets_on_boundary)[0]
 
     @numba.njit(cache=False)
-    def assemble_cells(kernel, mat):
+    def assemble_cells(kernel, mat, set_values):
         # Cannot cache compiled function "assemble_cells" as it uses outer variables in a closure
         active_cells = numpy.arange(num_cells)
         Ae = numpy.zeros((num_dofs_per_cell0, num_dofs_per_cell1), dtype=PETSc.ScalarType)
@@ -97,12 +150,12 @@ def assemble_matrix(a):
             cols = dof_array1[cell_index*num_dofs_per_cell1:
                               cell_index*num_dofs_per_cell1 + num_dofs_per_cell1]
 
-            MatSetValues(mat, num_dofs_per_cell0, ffi.from_buffer(rows),
-                         num_dofs_per_cell1, ffi.from_buffer(cols),
-                         ffi.from_buffer(Ae), mode)
+            set_values(mat, num_dofs_per_cell0, ffi.from_buffer(rows),
+                       num_dofs_per_cell1, ffi.from_buffer(cols),
+                       ffi.from_buffer(Ae), inssert_mode)
 
     @numba.njit(cache=False)
-    def assemble_facets(kernel, mat):
+    def assemble_facets(kernel, mat, set_values):
         # Cannot cache compiled function "assemble_facets" as it uses outer variables in a closure
         Ae = numpy.zeros((num_dofs_per_cell0, num_dofs_per_cell1), dtype=PETSc.ScalarType)
         orientation = numpy.array([0], dtype=PETSc.IntType)
@@ -133,18 +186,23 @@ def assemble_matrix(a):
             cols = dof_array1[cell_index*num_dofs_per_cell1:
                               cell_index*num_dofs_per_cell1 + num_dofs_per_cell1]
 
-            MatSetValues(mat, num_dofs_per_cell0, ffi.from_buffer(rows),
-                         num_dofs_per_cell1, ffi.from_buffer(cols),
-                         ffi.from_buffer(Ae), mode)
+            set_values(mat, num_dofs_per_cell0, ffi.from_buffer(rows),
+                       num_dofs_per_cell1, ffi.from_buffer(cols),
+                       ffi.from_buffer(Ae), inssert_mode)
+
+    if A.type == 'seqaij':
+        set_values = MatSetValues
+    elif A.type == 'mpiaij':
+        set_values = MatSetValuesLocal
 
     if num_cell_int:
         cell_integral = ufc_form.create_cell_integral(-1)
         kernel = cell_integral.tabulate_tensor
         mat = A.handle
-        assemble_cells(kernel, mat)
+        assemble_cells(kernel, mat, set_values)
     if num_facet_int:
         facet_integral = ufc_form.create_exterior_facet_integral(-1)
         kernel = facet_integral.tabulate_tensor
         mat = A.handle
-        assemble_facets(kernel, mat)
+        assemble_facets(kernel, mat, set_values)
     return A

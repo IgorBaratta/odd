@@ -5,6 +5,7 @@
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
 from enum import Enum
+import dolfinx
 import numpy
 from mpi4py import MPI
 from petsc4py import PETSc
@@ -41,7 +42,7 @@ class AdditiveSchwarz():
             self.vec_global = A.getVecRight()
         elif (A.type == PETSc.Mat.Type.SEQAIJ):
             # A is a sequential local matrix for each process
-            self.vec_global = data.global_vec()
+            self.vec_global = self.dofmap.create_vector()
             self.Ai = A
         else:
             raise Exception('Wrong matrix type')
