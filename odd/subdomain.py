@@ -45,8 +45,8 @@ def _on_interface(con_facet_cell, pos_facet_cell, on_boundary):
 def on_interface(mesh):
     tdim = mesh.topology.dim
     connectivity = mesh.topology.connectivity
-    con_facet_cell = connectivity(tdim - 1, tdim).connections()
-    pos_facet_cell = connectivity(tdim - 1, tdim).pos()
+    con_facet_cell = connectivity(tdim - 1, tdim).array()
+    pos_facet_cell = connectivity(tdim - 1, tdim).offsets()
     on_boundary = numpy.array(mesh.topology.on_boundary(tdim - 1))
     on_interface = _on_interface(con_facet_cell, pos_facet_cell, on_boundary)
     return on_interface

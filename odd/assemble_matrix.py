@@ -99,9 +99,9 @@ def assemble_matrix(a, A, active_entities={}):
 
     # Start connections
     connectivity = mesh.topology.connectivity
-    cell_g = connectivity(tdim, 0).connections()
-    pos_g = connectivity(tdim, 0).pos()
-    num_dofs_g = connectivity(tdim, 0).size(0)
+    cell_g = connectivity(tdim, 0).array()
+    pos_g = connectivity(tdim, 0).offsets()
+    num_dofs_g = connectivity(tdim, 0).links(0).size
 
     geometry = (points, num_dofs_g, gdim)
     dofmap0 = (dof_array0,  num_dofs_per_cell0)
@@ -129,10 +129,10 @@ def assemble_matrix(a, A, active_entities={}):
             active_facets = numpy.where(facets_on_boundary)[0]
 
         # get facet-cell and cell-facet connections
-        facet_cell = mesh.topology.connectivity(tdim - 1, tdim).connections()
-        pos_facet = mesh.topology.connectivity(tdim - 1, tdim).pos()
-        cell_facet = mesh.topology.connectivity(tdim, tdim - 1).connections()
-        pos_cell = mesh.topology.connectivity(tdim, tdim - 1).pos()
+        facet_cell = mesh.topology.connectivity(tdim - 1, tdim).array()
+        pos_facet = mesh.topology.connectivity(tdim - 1, tdim).offsets()
+        cell_facet = mesh.topology.connectivity(tdim, tdim - 1).array()
+        pos_cell = mesh.topology.connectivity(tdim, tdim - 1).offsets()
 
         connectivity = (cell_g, pos_g, facet_cell, pos_facet, cell_facet, pos_cell)
 

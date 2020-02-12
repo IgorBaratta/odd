@@ -4,6 +4,7 @@ from petsc4py import PETSc
 
 from dolfinx import (DirichletBC, Function, FunctionSpace, UnitSquareMesh, fem)
 from dolfinx.common import Timer, list_timings, TimingType
+from dolfinx.io import XDMFFile
 from dolfinx.fem import locate_dofs_topological
 from dolfinx.mesh import compute_marked_boundary_entities
 from dolfinx.cpp.mesh import GhostMode
@@ -63,7 +64,7 @@ local_ksp.pc.setType(PETSc.PC.Type.LU)
 local_ksp.pc.setFactorSolverType('mumps')
 
 
-x = A.getVecLeft()
+x = b.duplicate()
 
 t1 = Timer("xxxxx - Solve")
 solver.solve(b, x)
@@ -80,3 +81,17 @@ if comm.rank == 0:
     print("==================================")
 
 list_timings(MPI.COMM_WORLD, [TimingType.wall])
+
+
+with x.localForm() as x_local:
+    print(x.local_size, x_local.size)
+
+u = Function(V)
+x.copy(u.vector)
+u.vector.ghostUpdate(addv=PETSc.InsertMode.ADD, mode=PETSc.ScatterMode.REVERSE)
+# x.ghostUpdate(addv=PETSc.InsertMode.INSERT, mode=PETSc.ScatterMode.FORWARD)
+
+file = "file.xdmf"
+encoding = XDMFFile.Encoding.HDF5
+with XDMFFile(mesh.mpi_comm(), file, encoding=encoding) as file:
+        file.write(u)

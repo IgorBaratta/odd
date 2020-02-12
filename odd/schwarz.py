@@ -5,7 +5,6 @@
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
 from enum import Enum
-import dolfinx
 import numpy
 from mpi4py import MPI
 from petsc4py import PETSc
@@ -39,7 +38,7 @@ class AdditiveSchwarz():
             # A is an assembled distributed global matrix
             self._is_local = PETSc.IS().createGeneral(self.dofmap.indices)
             self.Ai = A.createSubMatrices(self._is_local)[0]
-            self.vec_global = A.getVecRight()
+            self.vec_global = self.dofmap.create_vector()
         elif (A.type == PETSc.Mat.Type.SEQAIJ):
             # A is a sequential local matrix for each process
             self.vec_global = self.dofmap.create_vector()
@@ -74,7 +73,7 @@ class AdditiveSchwarz():
             self.solver.setOperators(self.Ai)
             self.solver.setType('preonly')
             self.solver.pc.setType('lu')
-            self.solver.pc.setFactorSolverType('mumps')
+            # self.solver.pc.setFactorSolverType('mumps')
             self.solver.setFromOptions()
 
         if self.scatter_type == ScatterType.PETSc:
@@ -149,9 +148,6 @@ class AdditiveSchwarz():
                     self.solver.solve(x_local, y_local)
                 else:
                     raise RuntimeError("Not implemented")
-
-                # Apply ghosts
-                self.scatter.forward(y_local, y)
 
     def mult(self, mat: PETSc.Mat, x: PETSc.Vec, y: PETSc.Vec):
         # y <- Ax

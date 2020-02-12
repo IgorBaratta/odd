@@ -5,7 +5,6 @@
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
 import dolfinx
-import odd
 import ufl
 import numpy
 from mpi4py import MPI
@@ -16,12 +15,13 @@ from dolfinx.common import Timer, list_timings, TimingType
 comm = MPI.COMM_WORLD
 
 # Free-Space wavenumber
-k0 = 5*numpy.pi
-
+k0 = 2 * numpy.pi
 
 # Generate mesh
-shared_vertex = dolfinx.cpp.mesh.GhostMode.none
-mesh = dolfinx.UnitSquareMesh(comm, 64, 64, ghost_mode=shared_vertex)
+shared_vertex = dolfinx.cpp.mesh.GhostMode.shared_vertex
+none = dolfinx.cpp.mesh.GhostMode.none
+ghost_mode = shared_vertex if (comm.size > 1) else none
+mesh = dolfinx.UnitSquareMesh(comm, 128, 128, ghost_mode=ghost_mode)
 n = dolfinx.FacetNormal(mesh)
 
 
@@ -32,9 +32,8 @@ def plane_wave(x):
 
 
 # Definition of test and trial function spaces
-deg = 1  # polynomial degree
+deg = 3  # polynomial degree
 V = dolfinx.FunctionSpace(mesh, ("Lagrange", deg))
-subdomain = odd.SubDomainData(mesh, V, comm)
 
 # Prepare Expression as FE function
 ui = dolfinx.Function(V)
@@ -43,42 +42,33 @@ g = ufl.dot(ufl.grad(ui), n) + 1j * k0 * ui
 
 # Define variational problem
 u, v = ufl.TrialFunction(V), ufl.TestFunction(V)
-a = ufl.inner(ufl.grad(u), ufl.grad(v)) * ufl.dx - k0**2 * ufl.inner(u, v) * ufl.dx  \
+a = ufl.inner(ufl.grad(u), ufl.grad(v)) * ufl.dx - k0**2 * ufl.inner(u, v) * ufl.dx \
     + 1j * k0 * ufl.inner(u, v) * ufl.ds
 L = ufl.inner(g, v) * ufl.ds
 
-# Assemble Vector
 b = dolfinx.fem.assemble_vector(L)
 b.ghostUpdate(addv=PETSc.InsertMode.ADD, mode=PETSc.ScatterMode.REVERSE)
-
-# Assemble Matrix and apply transmission condition
-A = odd.create_matrix(a)
-odd.assemble_matrix(a, A)
-alpha = 4.96+14.88j
-# TC = 1j * k0 * ufl.inner(u, v) * ufl.ds - 1j/(2*k0) * ufl.inner(ufl.grad(u), ufl.grad(v)) * ufl.ds
-# odd.apply_transmission_condition(A, TC)
+A = dolfinx.fem.assemble_matrix(a, [])
 A.assemble()
 
-# Create
-ORAS = odd.AdditiveSchwarz(subdomain, A)
-ORAS.setUp()
+solver = PETSc.KSP().create(comm)
+solver.setOperators(A)
+solver.setType(PETSc.KSP.Type.GMRES)
+solver.setTolerances(rtol=1e-6)
+solver.setUp()
+solver.pc.setType(PETSc.PC.Type.ASM)
+solver.pc.setASMOverlap(1)
+solver.pc.setUp()
+local_ksp = solver.pc.getASMSubKSP()[0]
+local_ksp.setType(PETSc.KSP.Type.PREONLY)
+local_ksp.pc.setType(PETSc.PC.Type.LU)
+local_ksp.pc.setFactorSolverType('mumps')
 
-# Fix-me, matrix multiply
-C = dolfinx.fem.assemble_matrix(a)
-C.assemble()
 
-ksp = PETSc.KSP().create(comm)
-ksp.setOperators(C)
-ksp.setType(PETSc.KSP.Type.GMRES)
-# ksp.setTolerances(rtol=1e-6)
-ksp.pc.setType(PETSc.PC.Type.PYTHON)
-ksp.pc.setPythonContext(ORAS)
-ksp.setFromOptions()
-
-x = b.duplicate()
+x = A.getVecLeft()
 
 t1 = Timer("xxxxx - Solve")
-ksp.solve(b, x)
+solver.solve(b, x)
 t1.stop()
 
 u_exact = dolfinx.Function(V)
@@ -95,13 +85,10 @@ comm.Reduce(error, error_norm)
 
 if comm.rank == 0:
     print("==================================")
-    print("k0 ===", alpha)
     print("Number of Subdomains: ", comm.size)
     print("Error Norm:", error_norm)
-    print("Number of Iterations:", ksp.its)
+    print("Number of Iterations:", solver.its)
     print("==================================")
-
-ksp.destroy()
 
 list_timings(MPI.COMM_WORLD, [TimingType.wall])
 

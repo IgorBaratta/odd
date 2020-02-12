@@ -5,6 +5,7 @@ import numpy
 from dolfinx import (DirichletBC, Function, FunctionSpace, UnitSquareMesh, fem)
 from dolfinx.fem import locate_dofs_topological
 from dolfinx.cpp.mesh import GhostMode
+from dolfinx.io import XDMFFile
 from dolfinx.mesh import compute_marked_boundary_entities
 from dolfinx.common import Timer, list_timings, TimingType
 from ufl import SpatialCoordinate, TestFunction, TrialFunction, inner, dx, grad, pi, sin
@@ -25,7 +26,7 @@ def solution(x):
 n, p = 8, 2
 comm = MPI.COMM_WORLD
 
-ghost_mode = GhostMode.shared_vertex if (comm.size > 1) else GhostMode.none
+ghost_mode = GhostMode.none if (comm.size > 1) else GhostMode.none
 mesh = UnitSquareMesh(comm, 2**n, 2**n, ghost_mode=ghost_mode)
 
 V = FunctionSpace(mesh, ("Lagrange", p))
@@ -77,3 +78,11 @@ if comm.rank == 0:
     print("==================================")
 
 list_timings(MPI.COMM_WORLD, [TimingType.wall])
+
+u = Function(V)
+x.copy(u.vector)
+
+file = "file.xdmf"
+encoding = XDMFFile.Encoding.HDF5
+with XDMFFile(mesh.mpi_comm(), file, encoding=encoding) as file:
+        file.write(u)

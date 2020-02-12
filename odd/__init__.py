@@ -20,4 +20,5 @@ from .schwarz import AdditiveSchwarz, SMType
 from .subdomain import SubDomainData
 from .vector_scatter import PETScVectorScatter, RMAVectorScatter, ScatterType
 from .assemble import assemble_vector
-from .assemble_matrix import assemble_matrix, create_matrix, sparsity_pattern
+from .assemble_matrix import (assemble_matrix, create_matrix,
+                              sparsity_pattern, apply_transmission_condition)
