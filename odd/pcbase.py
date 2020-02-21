@@ -1,4 +1,4 @@
-# Copyright (C) 2019 Igor A. Baratta
+# Copyright (C) 2020 Igor A. Baratta
 #
 # This file is part of odd
 #

@@ -34,7 +34,7 @@ def plane_wave(x):
 # Definition of test and trial function spaces
 deg = 1  # polynomial degree
 V = dolfinx.FunctionSpace(mesh, ("Lagrange", deg))
-subdomain = odd.SubDomainData(mesh, V, comm)
+subdomain = odd.SubDomainData(V)
 
 # Prepare Expression as FE function
 ui = dolfinx.Function(V)

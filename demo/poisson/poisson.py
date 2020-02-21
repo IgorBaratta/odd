@@ -30,7 +30,7 @@ ghost_mode = GhostMode.none if (comm.size > 1) else GhostMode.none
 mesh = UnitSquareMesh(comm, 2**n, 2**n, ghost_mode=ghost_mode)
 
 V = FunctionSpace(mesh, ("Lagrange", p))
-subdomain = SubDomainData(mesh, V, comm)
+subdomain = SubDomainData(V)
 
 u = TrialFunction(V)
 v = TestFunction(V)
@@ -59,9 +59,11 @@ ASM.setUp()
 ksp = PETSc.KSP().create(comm)
 ksp.setOperators(A)
 ksp.setType(PETSc.KSP.Type.GMRES)
+
 ksp.pc.setType(PETSc.PC.Type.PYTHON)
 ksp.pc.setPythonContext(ASM)
 ksp.setFromOptions()
+
 
 t1 = Timer("xxxxx - Solve")
 x = b.duplicate()

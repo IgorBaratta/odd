@@ -4,24 +4,22 @@
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
-from mpi4py import MPI
-from dolfinx import FunctionSpace, cpp
+from dolfinx import FunctionSpace
 from .dofmap import DofMap
+from petsc4py import PETSc
+from mpi4py import MPI
 import numpy
 import numba
 
 
 class SubDomainData():
-    def __init__(self,
-                 mesh: cpp.mesh.Mesh,
-                 V: FunctionSpace,
-                 global_comm: MPI.Intracomm):
+    def __init__(self, V: FunctionSpace):
 
         # Store dolfinx FunctionSpace object
         self._V = V
 
         # Store MPI communicator
-        self.comm = global_comm
+        self.comm = V.mesh.mpi_comm()
 
         # Create domain decomposition DofMap
         self.dofmap = DofMap(V)
@@ -29,6 +27,67 @@ class SubDomainData():
     @property
     def id(self):
         return self.comm.rank
+
+    def restritction_matrix(self) -> PETSc.Mat:
+        """
+        Explicitely construct the local restriction matrix for
+        the current subdomain.
+        Good for testing.
+        """
+
+        # number of non-zeros per row
+        nnz = 1
+
+        # Local Size, including overlap
+        N = self.dofmap.size_local
+
+        # Global Size
+        N_global = self.dofmap.size_global
+
+        # create restriction data in csr format
+        A = numpy.ones(N, dtype=PETSc.IntType)
+        IA = numpy.arange(N + 1, dtype=PETSc.IntType)
+        JA = self.dofmap.indices
+
+        # Create and assembly local Restriction Matrix
+        R = PETSc.Mat().create(MPI.COMM_SELF)
+        R.setType('aij')
+        R.setSizes([N, N_global])
+        R.setPreallocationNNZ(nnz)
+        R.setValuesCSR(IA, JA, A)
+        R.assemblyBegin()
+        R.assemblyEnd()
+
+        return R
+
+    def partition_of_unity(self, mode="owned") -> PETSc.Mat:
+        """
+        Return the assembled partition of unit matrix for the current
+        subdomain/process.
+        Good for testing.
+        """
+
+        # number of non-zeros per row
+        nnz = 1
+        N = self.dofmap.size_local
+        N_owned = self.dofmap.size_owned
+
+        # create restriction data in csr format
+        A = numpy.zeros(N, dtype=PETSc.IntType)
+        A[0:N_owned] = 1
+        IA = numpy.arange(N + 1, dtype=PETSc.IntType)
+        JA = numpy.arange(N, dtype=PETSc.IntType)
+
+        # Create and assemble Partition of Unity Matrix
+        D = PETSc.Mat().create(MPI.COMM_SELF)
+        D.setType('aij')
+        D.setSizes([N, N])
+        D.setPreallocationNNZ(nnz)
+        D.setValuesCSR(IA, JA, A)
+        D.assemblyBegin()
+        D.assemblyEnd()
+
+        return D
 
 
 @numba.njit(fastmath=True)
