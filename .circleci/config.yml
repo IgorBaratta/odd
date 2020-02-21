@@ -3,7 +3,7 @@ flake8: &flake8
   command: |
             pip3 install flake8
             python3 -m flake8 odd
-            python3 -m demo
+            python3 -m flake8 demo
 
 install_odd: &install_odd
   name: Install odd
