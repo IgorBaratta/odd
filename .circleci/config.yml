@@ -1,3 +1,10 @@
+flake8: &flake8
+  name: Verifies pep8, pyflakes and circular complexit
+  command: |
+            pip3 install flake8
+            python3 -m flake8 odd
+            python3 -m demo
+
 install_odd: &install_odd
   name: Install odd
   command: |
@@ -23,6 +30,7 @@ jobs:
       - image: quay.io/fenicsproject/dolfinx:complex
     steps:
       - checkout
+      - run: *flake8
       - run: *install_odd
       - run: *run_demo_mpi
       - run: *run_test_serial
