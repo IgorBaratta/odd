@@ -4,26 +4,22 @@
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
+import cffi
 import dolfinx
 import numpy
 import numba
 import numba.cffi_support
 from mpi4py import MPI
 from petsc4py import PETSc
-import cffi
 from .petsc_utils import MatSetValues, MatSetValuesLocal
 from .subdomain import on_interface
 
 
+ffi = cffi.FFI()
 _create_cpp_form = dolfinx.fem.assemble._create_cpp_form
 
-# CFFI - register complex types
-ffi = cffi.FFI()
-numba.cffi_support.register_type(ffi.typeof('double _Complex'), numba.types.complex128)
-numba.cffi_support.register_type(ffi.typeof('float _Complex'), numba.types.complex64)
 
-
-def create_matrix(a, type="standard"):
+def create_matrix(a, type="communication-less"):
     _a = _create_cpp_form(a)
 
     if type == "standard":
@@ -52,7 +48,7 @@ def create_matrix(a, type="standard"):
         return A
 
 
-@numba.njit
+@numba.njit(fastmath=True)
 def sparsity_pattern(dofmap0, dofmap1):
     '''
     Return an estimated number of non zeros per row.
@@ -112,6 +108,10 @@ def assemble_matrix(a, A, active_entities={}):
     elif A.type == 'mpiaij':
         set_values = MatSetValuesLocal
 
+    edge_ref = numpy.array([], dtype=numpy.bool_)
+    face_ref = numpy.array([], dtype=numpy.bool_)
+    face_rot = numpy.array([], dtype=numpy.uint8)
+
     if num_cell_int:
         active_cells = active_entities.get("cells", None)
         if active_cells is None:
@@ -121,7 +121,8 @@ def assemble_matrix(a, A, active_entities={}):
         cell_integral = ufc_form.create_cell_integral(-1)
         kernel = cell_integral.tabulate_tensor
         assemble_cells(mat, geometry, connectivity, dofmap0, dofmap1,
-                       kernel, set_values, active_cells, insert_mode)
+                       kernel, set_values, active_cells, insert_mode,
+                       edge_ref, face_ref, face_rot)
     if num_facet_int:
         active_facets = active_entities.get("facets", None)
         if active_facets is None:
@@ -140,13 +141,15 @@ def assemble_matrix(a, A, active_entities={}):
         kernel = facet_integral.tabulate_tensor
 
         assemble_facets(mat, geometry, connectivity, dofmap0, dofmap1,
-                        kernel, set_values, active_facets, insert_mode)
+                        kernel, set_values, active_facets, insert_mode,
+                        edge_ref, face_ref, face_rot)
     return A
 
 
 @numba.njit(fastmath=True)
 def assemble_cells(mat, geometry, connectivity, dofmap0, dofmap1,
-                   kernel, set_values, active_cells, insert_mode):
+                   kernel, set_values, active_cells, insert_mode,
+                   edge_ref, face_ref, face_rot):
 
     points, num_dofs_g, gdim = geometry
     cell_g, pos_g = connectivity
@@ -159,6 +162,8 @@ def assemble_cells(mat, geometry, connectivity, dofmap0, dofmap1,
     constants = numpy.zeros(1, dtype=PETSc.ScalarType)
     coordinate_dofs = numpy.zeros((num_dofs_g, gdim), dtype=PETSc.RealType)
 
+    perm = numpy.array([0], dtype=numpy.uint8)
+
     for cell_index in active_cells:
         # Get cell coordinates/geometry
         for i in range(num_dofs_g):
@@ -167,9 +172,10 @@ def assemble_cells(mat, geometry, connectivity, dofmap0, dofmap1,
 
         Ae.fill(0.0)
         kernel(ffi.from_buffer(Ae), ffi.from_buffer(coeffs),
-               ffi.from_buffer(constants),
-               ffi.from_buffer(coordinate_dofs), ffi.from_buffer(orientation),
-               ffi.from_buffer(orientation))
+               ffi.from_buffer(constants), ffi.from_buffer(coordinate_dofs),
+               ffi.from_buffer(orientation), ffi.from_buffer(perm),
+               ffi.from_buffer(edge_ref), ffi.from_buffer(face_ref),
+               ffi.from_buffer(face_rot))
 
         rows = dof_array0[cell_index*num_dofs_per_cell0:
                           cell_index*num_dofs_per_cell0 + num_dofs_per_cell0]
@@ -183,7 +189,8 @@ def assemble_cells(mat, geometry, connectivity, dofmap0, dofmap1,
 
 @numba.njit(fastmath=True)
 def assemble_facets(mat, geometry, connectivity, dofmap0, dofmap1,
-                    kernel, set_values, active_facets, insert_mode):
+                    kernel, set_values, active_facets, insert_mode,
+                    edge_ref, face_ref, face_rot):
 
     points, num_dofs_g, gdim = geometry
     cell_g, pos_g, facet_cell, pos_facet, cell_facet, pos_cell = connectivity
@@ -195,6 +202,8 @@ def assemble_facets(mat, geometry, connectivity, dofmap0, dofmap1,
     coeffs = numpy.zeros(1, dtype=PETSc.ScalarType)
     constants = numpy.zeros(1, dtype=PETSc.ScalarType)
     coordinate_dofs = numpy.zeros((num_dofs_g, gdim), dtype=PETSc.RealType)
+
+    perm = numpy.array([0], dtype=numpy.uint8)
 
     for facet_index in active_facets:
         cell_index = facet_cell[pos_facet[facet_index]]
@@ -210,9 +219,10 @@ def assemble_facets(mat, geometry, connectivity, dofmap0, dofmap1,
 
         Ae.fill(0.0)
         kernel(ffi.from_buffer(Ae), ffi.from_buffer(coeffs),
-               ffi.from_buffer(constants),
-               ffi.from_buffer(coordinate_dofs), ffi.from_buffer(local_facet),
-               ffi.from_buffer(orientation))
+               ffi.from_buffer(constants), ffi.from_buffer(coordinate_dofs),
+               ffi.from_buffer(local_facet), ffi.from_buffer(perm),
+               ffi.from_buffer(edge_ref), ffi.from_buffer(face_ref),
+               ffi.from_buffer(face_rot))
 
         rows = dof_array0[cell_index*num_dofs_per_cell0:
                           cell_index*num_dofs_per_cell0 + num_dofs_per_cell0]

@@ -58,10 +58,8 @@ else:
 
 # CFFI - register complex types
 ffi = cffi.FFI()
-numba.cffi_support.register_type(ffi.typeof('double _Complex'),
-                                 numba.types.complex128)
-numba.cffi_support.register_type(ffi.typeof('float _Complex'),
-                                 numba.types.complex64)
+numba.cffi_support.register_type(ffi.typeof('double _Complex'), numba.types.complex128)
+numba.cffi_support.register_type(ffi.typeof('float _Complex'), numba.types.complex64)
 
 
 # Get MatSetValuesLocal and MatSetValues from PETSc available via cffi in ABI mode

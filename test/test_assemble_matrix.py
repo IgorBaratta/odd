@@ -1,12 +1,26 @@
+# Copyright (C) 2020 Igor A. Baratta
+#
+# This file is part of odd
+#
+# SPDX-License-Identifier:    LGPL-3.0-or-later
+
 import ufl
 import dolfinx
 import numpy
 import odd
+import pytest
+from mpi4py import MPI
+
+mesh_list = [dolfinx.UnitIntervalMesh(MPI.COMM_WORLD, 100),
+             dolfinx.UnitSquareMesh(MPI.COMM_WORLD, 64, 64),
+             dolfinx.UnitCubeMesh(MPI.COMM_WORLD, 10, 10, 10)]
 
 
-def test_assemble_matrix():
-    mesh = dolfinx.UnitSquareMesh(dolfinx.MPI.comm_world, 64, 64)
-    V = dolfinx.FunctionSpace(mesh, ("Lagrange", 1))
+@pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="This test should only be run in serial.")
+@pytest.mark.parametrize("mesh", mesh_list)
+def test_assemble_matrix(mesh):
+    ''' Test matrix assembly before Dirichlet boundary conditions application.'''
+    V = dolfinx.FunctionSpace(mesh, ("Lagrange", 2))
 
     u = ufl.TrialFunction(V)
     v = ufl.TestFunction(V)

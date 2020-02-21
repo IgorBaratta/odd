@@ -44,7 +44,7 @@ class AdditiveSchwarz():
             self.vec_global = self.dofmap.create_vector()
             self.Ai = A
         else:
-            raise Exception('Wrong matrix type')
+            raise Exception('Matrix type not supported.')
 
         # Declare some variables, but leave the initialization
         # for setup step
