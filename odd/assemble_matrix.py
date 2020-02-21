@@ -65,7 +65,7 @@ def sparsity_pattern(dofmap0, dofmap1):
     for cell_index in range(num_cells):
         cell_dof0 = dof_array0[cell_index*ndofs0: cell_index*ndofs0 + ndofs0]
         for dof0 in cell_dof0:
-                pattern[dof0] = pattern[dof0] + ndofs1
+            pattern[dof0] = pattern[dof0] + ndofs1
     return pattern
 
 
@@ -198,7 +198,6 @@ def assemble_facets(mat, geometry, connectivity, dofmap0, dofmap1,
     dof_array1,  num_dofs_per_cell1 = dofmap1
 
     Ae = numpy.zeros((num_dofs_per_cell0, num_dofs_per_cell1), dtype=PETSc.ScalarType)
-    orientation = numpy.array([0], dtype=PETSc.IntType)
     coeffs = numpy.zeros(1, dtype=PETSc.ScalarType)
     constants = numpy.zeros(1, dtype=PETSc.ScalarType)
     coordinate_dofs = numpy.zeros((num_dofs_g, gdim), dtype=PETSc.RealType)

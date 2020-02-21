@@ -94,4 +94,4 @@ u.vector.ghostUpdate(addv=PETSc.InsertMode.ADD, mode=PETSc.ScatterMode.REVERSE)
 file = "file.xdmf"
 encoding = XDMFFile.Encoding.HDF5
 with XDMFFile(mesh.mpi_comm(), file, encoding=encoding) as file:
-        file.write(u)
+    file.write(u)

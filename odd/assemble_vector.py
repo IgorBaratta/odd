@@ -11,7 +11,7 @@ import ufl
 _create_cpp_form = dolfinx.fem.assemble._create_cpp_form
 
 
-def assemble_vector(L: ufl.Form)->PETSc.Vec:
+def assemble_vector(L: ufl.Form) -> PETSc.Vec:
     '''
     Create and assemble vector given a rank 1 ufl form
     '''

@@ -5,6 +5,7 @@
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
 """Main module for odd"""
+# flake8: noqa
 
 # Initialise PETSc/MPI
 from dolfinx import cpp

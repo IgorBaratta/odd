@@ -95,4 +95,4 @@ list_timings(MPI.COMM_WORLD, [TimingType.wall])
 file = "file.xdmf"
 encoding = XDMFFile.Encoding.HDF5
 with XDMFFile(mesh.mpi_comm(), file, encoding=encoding) as file:
-        file.write(u)
+    file.write(u)

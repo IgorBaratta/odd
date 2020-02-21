@@ -10,8 +10,7 @@ import ufl
 import numpy
 from mpi4py import MPI
 from petsc4py import PETSc
-from dolfinx.io import XDMFFile
-from dolfinx.common import Timer, list_timings, TimingType
+from dolfinx.common import Timer
 
 arr = numpy.linspace(-2, 2, 20)
 
