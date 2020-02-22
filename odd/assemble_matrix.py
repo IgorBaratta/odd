@@ -48,8 +48,7 @@ def create_matrix(a, type="communication-less"):
         return A
 
 
-# Todo allow numba compilation
-# @numba.njit(fastmath=True)
+@numba.njit(fastmath=True)
 def sparsity_pattern(dofmap0, dofmap1):
     '''
     Return an estimated number of non zeros per row.
@@ -61,7 +60,7 @@ def sparsity_pattern(dofmap0, dofmap1):
 
     dofs = numpy.unique(dof_array0)
     nnz = numpy.zeros_like(dofs)
-    pattern = [set() for i in range(dofs.size)]
+    pattern = [set([i]) for i in range(dofs.size)]
 
     for cell in range(num_cells):
         cell_dof0 = dof_array0[cell*ndofs0: cell*ndofs0 + ndofs0]
