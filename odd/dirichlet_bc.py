@@ -7,6 +7,9 @@ from petsc4py import PETSc
 
 
 def apply_bc(ndarray, dofs, values=None):
+    '''
+    Simplified interface for applying Dirichlet BC.
+    '''
     if isinstance(ndarray, PETSc.Mat):
         _matrix_apply_bc(ndarray, dofs)
     elif isinstance(ndarray, PETSc.Vec):

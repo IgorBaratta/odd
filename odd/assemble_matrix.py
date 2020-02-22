@@ -48,25 +48,32 @@ def create_matrix(a, type="communication-less"):
         return A
 
 
-@numba.njit(fastmath=True)
+# Todo allow numba compilation
+# @numba.njit(fastmath=True)
 def sparsity_pattern(dofmap0, dofmap1):
     '''
     Return an estimated number of non zeros per row.
+    Based on cell integral pattern.
     '''
-    # FIXME: improve sparsity pattern
-    # Based on cell integral pattern
     (dof_array0, ndofs0) = dofmap0
     (dof_array1, ndofs1) = dofmap1
     num_cells = int(dof_array0.size/ndofs0)
 
-    num_dofs = numpy.unique(dof_array0)
-    pattern = numpy.zeros_like(num_dofs)
+    dofs = numpy.unique(dof_array0)
+    nnz = numpy.zeros_like(dofs)
+    pattern = [set() for i in range(dofs.size)]
 
-    for cell_index in range(num_cells):
-        cell_dof0 = dof_array0[cell_index*ndofs0: cell_index*ndofs0 + ndofs0]
+    for cell in range(num_cells):
+        cell_dof0 = dof_array0[cell*ndofs0: cell*ndofs0 + ndofs0]
+        cell_dof1 = dof_array1[cell*ndofs1: cell*ndofs1 + ndofs1]
         for dof0 in cell_dof0:
-            pattern[dof0] = pattern[dof0] + ndofs1
-    return pattern
+            for dof1 in cell_dof1:
+                pattern[dof0].add(dof1)
+
+    for i in range(dofs.size):
+        nnz[i] = len(pattern[i])
+
+    return nnz
 
 
 def assemble_matrix(a, A, active_entities={}):
