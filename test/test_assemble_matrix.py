@@ -19,9 +19,10 @@ mesh_list = [dolfinx.UnitIntervalMesh(MPI.COMM_WORLD, 100),
 
 @pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="This test should only be run in serial.")
 @pytest.mark.parametrize("mesh", mesh_list)
-def test_assemble_matrix(mesh):
+@pytest.mark.parametrize("degree", [1, 2, 3, 4])
+def test_assemble_matrix(mesh, degree):
     ''' Test matrix assembly before Dirichlet boundary conditions application.'''
-    V = dolfinx.FunctionSpace(mesh, ("Lagrange", 2))
+    V = dolfinx.FunctionSpace(mesh, ("Lagrange", degree))
 
     u = ufl.TrialFunction(V)
     v = ufl.TestFunction(V)

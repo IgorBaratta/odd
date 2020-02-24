@@ -1,9 +1,8 @@
-# Copyright (C) 2019 Garth N. Wells
+# Copyright (C) 2020 Igor A. Baratta
 #
 # This file is part of DOLFINX (https://www.fenicsproject.org)
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
-"""Tests for custom Python assemblers"""
 
 import ctypes
 import ctypes.util
