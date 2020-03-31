@@ -27,7 +27,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: quay.io/fenicsproject/dolfinx:complex
+      - image: fenicsproject/dolfinx:complex
     steps:
       - checkout
       - run: *flake8
