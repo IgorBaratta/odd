@@ -27,7 +27,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: dolfinx/dev-env-complex:latest
+      - image: dolfinx/complex:latest
     steps:
       - checkout
       - run: *flake8
