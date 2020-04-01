@@ -25,217 +25,145 @@ def create_matrix(a, type="communication-less"):
     if type == "standard":
         A = dolfinx.cpp.fem.create_matrix(_a)
         A.zeroEntries()
-        return A
 
     elif type == "communication-less":
         dofmap0 = _a.function_space(0).dofmap
         dofmap1 = _a.function_space(1).dofmap
 
-        dof_array0 = dofmap0.dof_array()
-        dof_array1 = dofmap1.dof_array()
+        assert dofmap0 == dofmap1
 
-        num_dofs_per_cell0 = dofmap0.dof_layout.num_dofs
-        num_dofs_per_cell1 = dofmap1.dof_layout.num_dofs
+        dof_array = dofmap0.list().array()
+        ndofs_cell = dofmap0.dof_layout.num_dofs
 
         # Number of nonzeros per row
-        nnz = sparsity_pattern((dof_array0, num_dofs_per_cell0),
-                               (dof_array1, num_dofs_per_cell1))
-        size = nnz.size
-        A = PETSc.Mat().createAIJ([size, size], nnz=nnz, comm=MPI.COMM_SELF)
+        pattern, nnz = sparsity_pattern(dof_array, ndofs_cell)
+        ndofs = len(pattern)
+
+        A = PETSc.Mat().createAIJ([ndofs, ndofs], nnz=nnz, comm=MPI.COMM_SELF)
         A.setUp()
         A.zeroEntries()
 
-        return A
+    elif type == "scipy":
+        dofmap0 = _a.function_space(0).dofmap
+        dof_array = dofmap0.list().array()
+        ndofs_cell = dofmap0.dof_layout.num_dofs
+        A = sparsity_pattern_scipy(dof_array, ndofs_cell)
+
+    return A
 
 
 @numba.njit(fastmath=True)
-def sparsity_pattern(dofmap0, dofmap1):
+def sparsity_pattern(dof_array, ndofs_cell):
     '''
-    Return an estimated number of non zeros per row.
+    Create the sparsity pattern of the matrix.
     Based on cell integral pattern.
     '''
-    (dof_array0, ndofs0) = dofmap0
-    (dof_array1, ndofs1) = dofmap1
-    num_cells = int(dof_array0.size/ndofs0)
-
-    dofs = numpy.unique(dof_array0)
-    nnz = numpy.zeros_like(dofs)
-    pattern = [set([i]) for i in range(dofs.size)]
+    num_cells = int(dof_array.size/ndofs_cell)
+    ndofs = numpy.max(dof_array) + 1
+    pattern = [set([i]) for i in range(ndofs)]
 
     for cell in range(num_cells):
-        cell_dof0 = dof_array0[cell*ndofs0: cell*ndofs0 + ndofs0]
-        cell_dof1 = dof_array1[cell*ndofs1: cell*ndofs1 + ndofs1]
-        for dof0 in cell_dof0:
-            for dof1 in cell_dof1:
+        cell_dof = dof_array[cell*ndofs_cell: cell*ndofs_cell + ndofs_cell]
+        for dof0 in cell_dof:
+            for dof1 in cell_dof:
                 pattern[dof0].add(dof1)
 
-    for i in range(dofs.size):
+    nnz = numpy.zeros(ndofs, dtype=numpy.int32)
+    for i in range(ndofs):
         nnz[i] = len(pattern[i])
 
-    return nnz
+    return pattern, nnz
+
+
+@numba.njit(fastmath=True)
+def sparsity_pattern_scipy(dof_array, ndofs_cell):
+    '''
+    Create the sparsity pattern of the matrix.
+    Based on cell integral pattern.
+    '''
+    num_cells = int(dof_array.size/ndofs_cell)
+
+    vsize = num_cells * ndofs_cell**2
+
+    rows = numpy.zeros(vsize, dtype=numpy.int32)
+    cols = numpy.zeros(vsize, dtype=numpy.int32)
+    vals = numpy.zeros(vsize, dtype=numpy.int32)
+
+    j = 0
+    for cell in range(num_cells):
+        cell_dof = dof_array[cell*ndofs_cell: cell*ndofs_cell + ndofs_cell]
+        for dof in cell_dof:
+                rows[j: j + ndofs_cell] = dof
+                cols[j: j + ndofs_cell] = cell_dof
+                j += ndofs_cell
+    return rows, cols, vals
 
 
 def assemble_matrix(a, A, active_entities={}):
-    mat = A.handle
-    insert_mode = PETSc.InsertMode.ADD
-
     ufc_form = dolfinx.jit.ffcx_jit(a)
     _a = _create_cpp_form(a)
     mesh = _a.mesh()
 
     tdim = mesh.topology.dim
     gdim = mesh.geometry.dim
-    points = mesh.geometry.points
     num_cells = mesh.num_entities(tdim)
 
-    dolfinx_dofmap0 = _a.function_space(0).dofmap
-    dolfinx_dofmap1 = _a.function_space(1).dofmap
+    dofmap0 = _a.function_space(0).dofmap
+    dofmap1 = _a.function_space(1).dofmap
+    assert dofmap0 == dofmap1
 
-    dof_array0 = dolfinx_dofmap0.dof_array()
-    dof_array1 = dolfinx_dofmap1.dof_array()
-    num_dofs_per_cell0 = dolfinx_dofmap0.dof_layout.num_dofs
-    num_dofs_per_cell1 = dolfinx_dofmap1.dof_layout.num_dofs
+    # Unpack mesh and dofmap data
+    x = mesh.geometry.x[:, :gdim]
+    pos = mesh.geometry.dofmap().offsets()
+    x_dofs = mesh.geometry.dofmap().array()
 
-    num_cell_int = ufc_form.num_cell_integrals
-    num_facet_int = ufc_form.num_exterior_facet_integrals
+    # Unpack dofmap data
+    ndofs_cell = dofmap0.dof_layout.num_dofs
+    dof_array = dofmap0.list().array()
 
-    # Start connections
-    connectivity = mesh.topology.connectivity
-    cell_g = connectivity(tdim, 0).array()
-    pos_g = connectivity(tdim, 0).offsets()
-    num_dofs_g = connectivity(tdim, 0).links(0).size
+    if isinstance(A, PETSc.Mat):
+        mat = A.handle
+        if A.type == 'seqaij':
+            set_values = MatSetValues
+        elif A.type == 'mpiaij':
+            set_values = MatSetValuesLocal
 
-    geometry = (points, num_dofs_g, gdim)
-    dofmap0 = (dof_array0,  num_dofs_per_cell0)
-    dofmap1 = (dof_array1,  num_dofs_per_cell1)
+    insert_mode = PETSc.InsertMode.ADD
 
-    if A.type == 'seqaij':
-        set_values = MatSetValues
-    elif A.type == 'mpiaij':
-        set_values = MatSetValuesLocal
-
-    edge_ref = numpy.array([], dtype=numpy.bool_)
-    face_ref = numpy.array([], dtype=numpy.bool_)
-    face_rot = numpy.array([], dtype=numpy.uint8)
-
-    if num_cell_int:
-        active_cells = active_entities.get("cells", None)
-        if active_cells is None:
-            active_cells = numpy.arange(num_cells)
-
-        connectivity = (cell_g, pos_g)
+    if ufc_form.num_cell_integrals:
+        active_cells = active_entities.get("cells", numpy.arange(num_cells))
         cell_integral = ufc_form.create_cell_integral(-1)
         kernel = cell_integral.tabulate_tensor
-        assemble_cells(mat, geometry, connectivity, dofmap0, dofmap1,
-                       kernel, set_values, active_cells, insert_mode,
-                       edge_ref, face_ref, face_rot)
-    if num_facet_int:
-        active_facets = active_entities.get("facets", None)
-        if active_facets is None:
-            facets_on_boundary = mesh.topology.on_boundary(tdim - 1)
-            active_facets = numpy.where(facets_on_boundary)[0]
-
-        # get facet-cell and cell-facet connections
-        facet_cell = mesh.topology.connectivity(tdim - 1, tdim).array()
-        pos_facet = mesh.topology.connectivity(tdim - 1, tdim).offsets()
-        cell_facet = mesh.topology.connectivity(tdim, tdim - 1).array()
-        pos_cell = mesh.topology.connectivity(tdim, tdim - 1).offsets()
-
-        connectivity = (cell_g, pos_g, facet_cell, pos_facet, cell_facet, pos_cell)
-
-        facet_integral = ufc_form.create_exterior_facet_integral(-1)
-        kernel = facet_integral.tabulate_tensor
-
-        assemble_facets(mat, geometry, connectivity, dofmap0, dofmap1,
-                        kernel, set_values, active_facets, insert_mode,
-                        edge_ref, face_ref, face_rot)
-    return A
+        assemble_cells(mat, kernel, (dof_array, ndofs_cell), (pos, x_dofs, x),
+                       active_cells, set_values, insert_mode)
 
 
 @numba.njit(fastmath=True)
-def assemble_cells(mat, geometry, connectivity, dofmap0, dofmap1,
-                   kernel, set_values, active_cells, insert_mode,
-                   edge_ref, face_ref, face_rot):
+def assemble_cells(mat, kernel, dofmap, mesh, active_cells, set_values, insert_mode):
+    (dof_array, ndofs_cell) = dofmap
+    (pos, x_dofs, x) = mesh
 
-    points, num_dofs_g, gdim = geometry
-    cell_g, pos_g = connectivity
-    dof_array0,  num_dofs_per_cell0 = dofmap0
-    dof_array1,  num_dofs_per_cell1 = dofmap1
-
-    Ae = numpy.zeros((num_dofs_per_cell0, num_dofs_per_cell1), dtype=PETSc.ScalarType)
-    orientation = numpy.array([0], dtype=PETSc.IntType)
+    Ae = numpy.zeros((ndofs_cell, ndofs_cell), dtype=PETSc.ScalarType)
     coeffs = numpy.zeros(1, dtype=PETSc.ScalarType)
     constants = numpy.zeros(1, dtype=PETSc.ScalarType)
-    coordinate_dofs = numpy.zeros((num_dofs_g, gdim), dtype=PETSc.RealType)
 
+    entity_local_index = numpy.array([0], dtype=numpy.int32)
     perm = numpy.array([0], dtype=numpy.uint8)
 
-    for cell_index in active_cells:
-        # Get cell coordinates/geometry
-        for i in range(num_dofs_g):
-            for j in range(gdim):
-                coordinate_dofs[i, j] = points[cell_g[pos_g[cell_index] + i], j]
+    coordinate_dofs = numpy.zeros((ndofs_cell, x.shape[1]), dtype=PETSc.RealType)
 
+    for idx in active_cells:
+        coordinate_dofs = x[x_dofs[pos[idx]:pos[idx+1]], :]
         Ae.fill(0.0)
         kernel(ffi.from_buffer(Ae), ffi.from_buffer(coeffs),
                ffi.from_buffer(constants), ffi.from_buffer(coordinate_dofs),
-               ffi.from_buffer(orientation), ffi.from_buffer(perm),
-               ffi.from_buffer(edge_ref), ffi.from_buffer(face_ref),
-               ffi.from_buffer(face_rot))
+               ffi.from_buffer(entity_local_index), ffi.from_buffer(perm), 0)
 
-        rows = dof_array0[cell_index*num_dofs_per_cell0:
-                          cell_index*num_dofs_per_cell0 + num_dofs_per_cell0]
-        cols = dof_array1[cell_index*num_dofs_per_cell1:
-                          cell_index*num_dofs_per_cell1 + num_dofs_per_cell1]
+        rows = dof_array[idx*ndofs_cell: idx*ndofs_cell + ndofs_cell]
+        cols = dof_array[idx*ndofs_cell: idx*ndofs_cell + ndofs_cell]
 
-        set_values(mat, num_dofs_per_cell0, ffi.from_buffer(rows),
-                   num_dofs_per_cell1, ffi.from_buffer(cols),
-                   ffi.from_buffer(Ae), insert_mode)
-
-
-@numba.njit(fastmath=True)
-def assemble_facets(mat, geometry, connectivity, dofmap0, dofmap1,
-                    kernel, set_values, active_facets, insert_mode,
-                    edge_ref, face_ref, face_rot):
-
-    points, num_dofs_g, gdim = geometry
-    cell_g, pos_g, facet_cell, pos_facet, cell_facet, pos_cell = connectivity
-    dof_array0,  num_dofs_per_cell0 = dofmap0
-    dof_array1,  num_dofs_per_cell1 = dofmap1
-
-    Ae = numpy.zeros((num_dofs_per_cell0, num_dofs_per_cell1), dtype=PETSc.ScalarType)
-    coeffs = numpy.zeros(1, dtype=PETSc.ScalarType)
-    constants = numpy.zeros(1, dtype=PETSc.ScalarType)
-    coordinate_dofs = numpy.zeros((num_dofs_g, gdim), dtype=PETSc.RealType)
-
-    perm = numpy.array([0], dtype=numpy.uint8)
-
-    for facet_index in active_facets:
-        cell_index = facet_cell[pos_facet[facet_index]]
-
-        # Get local index of facet with respect to the cell
-        facets = cell_facet[pos_cell[cell_index]: pos_cell[cell_index + 1]]
-        local_facet = numpy.where(facets == facet_index)[0].astype(PETSc.IntType)
-
-        # Get cell coordinates/geometry
-        for i in range(num_dofs_g):
-            for j in range(gdim):
-                coordinate_dofs[i, j] = points[cell_g[pos_g[cell_index] + i], j]
-
-        Ae.fill(0.0)
-        kernel(ffi.from_buffer(Ae), ffi.from_buffer(coeffs),
-               ffi.from_buffer(constants), ffi.from_buffer(coordinate_dofs),
-               ffi.from_buffer(local_facet), ffi.from_buffer(perm),
-               ffi.from_buffer(edge_ref), ffi.from_buffer(face_ref),
-               ffi.from_buffer(face_rot))
-
-        rows = dof_array0[cell_index*num_dofs_per_cell0:
-                          cell_index*num_dofs_per_cell0 + num_dofs_per_cell0]
-        cols = dof_array1[cell_index*num_dofs_per_cell1:
-                          cell_index*num_dofs_per_cell1 + num_dofs_per_cell1]
-
-        set_values(mat, num_dofs_per_cell0, ffi.from_buffer(rows),
-                   num_dofs_per_cell1, ffi.from_buffer(cols),
+        set_values(mat, ndofs_cell, ffi.from_buffer(rows),
+                   ndofs_cell, ffi.from_buffer(cols),
                    ffi.from_buffer(Ae), insert_mode)
 
 
