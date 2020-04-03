@@ -6,7 +6,6 @@
 
 from dolfinx.function import FunctionSpace
 import dolfinx
-from petsc4py.PETSc import IntType
 import numpy
 
 
@@ -35,7 +34,7 @@ class DofMap:
     def indices(self) -> numpy.ndarray:
         """ Return array of global indices for all dofs on this process,
         including shared dofs"""
-        return self._index_map.indices(True).astype(IntType)
+        return self._index_map.indices(True).astype(numpy.int32)
 
     @property
     def owned_indices(self) -> numpy.ndarray:
@@ -88,7 +87,7 @@ class DofMap:
     def ghosts(self):
         """ Returns a string to be used as a printable representation
         of a given rectangle."""
-        return self._index_map.ghosts.astype(IntType)
+        return self._index_map.ghosts.astype(numpy.int32)
 
     @property
     def all_ranges(self):
@@ -101,8 +100,8 @@ class DofMap:
         of a given rectangle."""
         if i in self.neighbours:
             local_indices = numpy.where(self.ghost_owners == i)[0] + self.size_owned
-            ghosts = self._index_map.ghosts[self.ghost_owners == i].astype(IntType)
-            return ghosts, local_indices.astype(IntType)
+            ghosts = self._index_map.ghosts[self.ghost_owners == i].astype(numpy.int32)
+            return ghosts, local_indices.astype(numpy.int32)
         else:
             raise Exception('SubDomain ' + str(i) +
                             ' is not a neighbour  of subdomain ' +

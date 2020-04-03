@@ -3,17 +3,20 @@
 # This file is part of odd
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
-from petsc4py import PETSc
+import scipy
+import numpy
 
 
-def apply_bc(ndarray, dofs, values=None):
+def apply_bc(data, dofs, values=None):
     '''
     Simplified interface for applying Dirichlet BC.
+
     '''
-    if isinstance(ndarray, PETSc.Mat):
-        _matrix_apply_bc(ndarray, dofs)
-    elif isinstance(ndarray, PETSc.Vec):
-        _vector_apply_bc(ndarray, dofs, values)
+    if isinstance(data, scipy.sparse.spmat):
+        _matrix_apply_bc(data, dofs)
+        data.eliminate_zeros()
+    elif isinstance(data, numpy.ndarray):
+        _vector_apply_bc(data, dofs, values)
     else:
         raise TypeError
 
@@ -23,6 +26,13 @@ def _matrix_apply_bc(A, dofs):
 
 
 def _vector_apply_bc(b, dofs, values):
-    assert(dofs.size == values.size)
-    with b.localForm() as b:
-        b.setValues(dofs.astype(PETSc.IntType), values.astype(PETSc.ScalarType))
+    b[dofs] = values
+
+
+def csr_row_set_nz_to_val(csr, row, value=0):
+    """Set all nonzero elements (elements currently in the sparsity pattern)
+    to the given value. Useful to set to 0 mostly.
+    """
+    if not isinstance(csr, scipy.sparse.csr_matrix):
+        raise ValueError('Matrix given must be of CSR format.')
+    csr.data[csr.indptr[row]:csr.indptr[row+1]] = value

@@ -17,7 +17,7 @@ mesh_list = [dolfinx.UnitIntervalMesh(MPI.COMM_WORLD, 100),
 
 
 @pytest.mark.parametrize("mesh", mesh_list)
-def test_assemble_matrix(mesh):
+def xtest_assemble_matrix(mesh):
     ''' Test matrix assembly before Dirichlet boundary conditions application.'''
 
     V = dolfinx.FunctionSpace(mesh, ("Lagrange", 2))
