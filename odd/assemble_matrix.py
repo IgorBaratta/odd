@@ -10,8 +10,6 @@ import numpy
 import numba
 import numba.cffi_support
 from scipy.sparse import coo_matrix
-from .subdomain import on_interface
-
 
 # CFFI - register complex types
 ffi = cffi.FFI()
@@ -19,7 +17,7 @@ numba.cffi_support.register_type(ffi.typeof('double _Complex'), numba.types.comp
 numba.cffi_support.register_type(ffi.typeof('float _Complex'), numba.types.complex64)
 
 
-def assemble_matrix(a, active_entities={}):
+def assemble_matrix(a, active_entities={}, dtype=numpy.complex128):
     ufc_form = dolfinx.jit.ffcx_jit(a)
     _a = dolfinx.Form(a)._cpp_object
     mesh = _a.mesh()
@@ -42,7 +40,7 @@ def assemble_matrix(a, active_entities={}):
     dof_array = dofmap0.list().array()
     N = numpy.max(dof_array) + 1
 
-    data = numpy.zeros(ndofs_cell*dof_array.size, dtype=numpy.complex128)
+    data = numpy.zeros(ndofs_cell*dof_array.size, dtype=dtype)
     coefficients = dolfinx.cpp.fem.pack_coefficients(_a)
     constants = dolfinx.cpp.fem.pack_constants(_a)
     perm = numpy.array([0], dtype=numpy.uint8)
@@ -74,7 +72,7 @@ def assemble_cells(data, kernel, dofmap, mesh, coeffs, constants, perm, active_c
     (pos, x_dofs, x, nv) = mesh
 
     entity_local_index = numpy.array([0], dtype=numpy.int32)
-    Ae = numpy.zeros((ndofs_cell, ndofs_cell), dtype=numpy.complex128)
+    Ae = numpy.zeros((ndofs_cell, ndofs_cell), dtype=data.dtype)
     coordinate_dofs = numpy.zeros((nv, x.shape[1]), dtype=numpy.float64)
     for idx in active_cells:
         coordinate_dofs[:] = x[x_dofs[pos[idx]:pos[idx+1]], :]
@@ -90,7 +88,7 @@ def assemble_facets(data, kernel, dofmap, mesh, coeffs, constants, perm, facet_d
     (dof_array, ndofs_cell) = dofmap
     (pos, x_dofs, x, nv) = mesh
     entity_local_index = numpy.array([0], dtype=numpy.int32)
-    Ae = numpy.zeros((ndofs_cell, ndofs_cell), dtype=numpy.complex128)
+    Ae = numpy.zeros((ndofs_cell, ndofs_cell), dtype=data.dtype)
     coordinate_dofs = numpy.zeros((nv, x.shape[1]), dtype=numpy.float64)
     nfacets = facet_data.shape[0]
     for i in range(nfacets):
@@ -102,13 +100,6 @@ def assemble_facets(data, kernel, dofmap, mesh, coeffs, constants, perm, facet_d
                ffi.from_buffer(constants), ffi.from_buffer(coordinate_dofs),
                ffi.from_buffer(entity_local_index), ffi.from_buffer(perm), 0)
         data[cell_idx*Ae.size:cell_idx*Ae.size+Ae.size] += Ae.ravel()
-
-
-def apply_transmission_condition(A, s):
-    _s = dolfinx.Form(s)._cpp_object
-    active_facets = numpy.where(on_interface(_s.mesh()))[0]
-    S = assemble_matrix(s, {"facets": active_facets})
-    A.data = A.data + S.data
 
 
 def sparsity_pattern(dof_array, ndofs_cell):

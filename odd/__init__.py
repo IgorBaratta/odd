@@ -13,6 +13,6 @@ from .schwarz import AdditiveSchwarz, SMType
 from .subdomain import SubDomainData
 from .vector_scatter import PETScVectorScatter, RMAVectorScatter, ScatterType
 from .assemble_vector import assemble_vector
-from .assemble_matrix import assemble_matrix, apply_transmission_condition
+from .assemble_matrix import assemble_matrix
 from .dirichlet_bc import apply_bc
 from .matrix_context import MatrixContext

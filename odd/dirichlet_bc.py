@@ -7,14 +7,14 @@ import scipy
 import numpy
 
 
-def apply_bc(data, dofs, values=None):
+def apply_bc(data, dof_list, values=None):
     '''
     Simplified interface for applying Dirichlet BC.
 
     '''
-    if isinstance(data, scipy.sparse.spmat):
+    dofs = dof_list.ravel()
+    if isinstance(data, scipy.sparse.spmatrix):
         _matrix_apply_bc(data, dofs)
-        data.eliminate_zeros()
     elif isinstance(data, numpy.ndarray):
         _vector_apply_bc(data, dofs, values)
     else:
@@ -22,17 +22,13 @@ def apply_bc(data, dofs, values=None):
 
 
 def _matrix_apply_bc(A, dofs):
-    A.zeroRows(rows=dofs.flatten(), diag=1)
+    if not isinstance(A, scipy.sparse.csr_matrix):
+        raise ValueError('Matrix must be of csr format.')
+    for dof in dofs:
+        A.data[A.indptr[dof]:A.indptr[dof+1]] = 0.
+        A[dof, dof] = 1.
 
 
 def _vector_apply_bc(b, dofs, values):
+    assert dofs.size == values.size
     b[dofs] = values
-
-
-def csr_row_set_nz_to_val(csr, row, value=0):
-    """Set all nonzero elements (elements currently in the sparsity pattern)
-    to the given value. Useful to set to 0 mostly.
-    """
-    if not isinstance(csr, scipy.sparse.csr_matrix):
-        raise ValueError('Matrix given must be of CSR format.')
-    csr.data[csr.indptr[row]:csr.indptr[row+1]] = value

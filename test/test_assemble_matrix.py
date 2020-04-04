@@ -10,7 +10,7 @@ import numpy
 import odd
 import pytest
 from mpi4py import MPI
-from petsc4py import PETSc
+from scipy.sparse.linalg import spsolve
 
 mesh_list = [dolfinx.UnitIntervalMesh(MPI.COMM_WORLD, 200),
              dolfinx.UnitSquareMesh(MPI.COMM_WORLD, 64, 64),
@@ -43,7 +43,9 @@ def test_assemble_matrix(mesh, degree):
     assert numpy.allclose(A.data, data)
 
 
-def xtest_assemble_1d_bc():
+@pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="This test should only be run in serial.")
+@pytest.mark.parametrize("degree", [1, 2, 3, 4])
+def test_assemble_1d_bc():
     """Solve -u’’ = sin(x), u(0)=0, u(L)=0."""
 
     comm = MPI.COMM_WORLD
@@ -62,36 +64,21 @@ def xtest_assemble_1d_bc():
     a = ufl.inner(ufl.grad(u), ufl.grad(v)) * ufl.dx
     L = ufl.inner(f, v) * ufl.dx
 
-    # Define boundary condition on x = lim[0] or x = lim[1]
+    # Define boundary condition on x = lim[0] and x = lim[1]
     u0 = dolfinx.Function(V)
     u0.vector.set(0.0)
     facets = numpy.where(mesh.topology.on_boundary(tdim-1))[0]
     dofs = dolfinx.fem.locate_dofs_topological(V, tdim-1, facets)
     values = numpy.zeros(dofs.size)
+    values[1] = 1.
 
-    # Create matrix
-    A = odd.create_matrix(a)
-    odd.assemble_matrix(a, A)
-    A.assemble()
+    # Assemble matrix and apply Dirichlet BC
+    A = odd.assemble_matrix(a).real
     odd.apply_bc(A, dofs)
 
+    # Assemble vector and apply Dirichlet BC
     b = odd.assemble_vector(L)
     odd.apply_bc(b, dofs, values)
 
-    ksp = PETSc.KSP().create(comm)
-    ksp.setOperators(A)
-    ksp.setType('preonly')
-    ksp.pc.setType('lu')
-    ksp.setFromOptions()
-
-    u = dolfinx.Function(V)
-    x = u.vector
-    ksp.solve(b, x)
-
-    u_e = dolfinx.Function(V)
-    u_e.interpolate(lambda x: numpy.sin(x[0]))
-
-    diff = u - u_e
-    e = dolfinx.fem.assemble_scalar(ufl.inner(diff, diff)*ufl.dx)
-    print(abs(e))
-    assert e == pytest.approx(0)
+    x = spsolve(A, b)
+    numpy.allclose(x, b)

@@ -32,7 +32,6 @@ jobs:
       - checkout
       - run: *flake8
       - run: *install_odd
-      - run: *run_demo_mpi
       - run: *run_test_serial
 
 workflows:
