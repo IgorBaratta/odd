@@ -45,7 +45,7 @@ def test_assemble_matrix(mesh, degree):
 
 @pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="This test should only be run in serial.")
 @pytest.mark.parametrize("degree", [1, 2, 3, 4])
-def test_assemble_1d_bc():
+def test_assemble_1d_bc(degree):
     """Solve -u’’ = sin(x), u(0)=0, u(L)=0."""
 
     comm = MPI.COMM_WORLD
@@ -58,7 +58,7 @@ def test_assemble_1d_bc():
     [x] = ufl.SpatialCoordinate(mesh.ufl_domain())
     f = ufl.sin(x)
 
-    V = dolfinx.FunctionSpace(mesh, ("P", 2))
+    V = dolfinx.FunctionSpace(mesh, ("P", degree))
     u = ufl.TrialFunction(V)
     v = ufl.TestFunction(V)
     a = ufl.inner(ufl.grad(u), ufl.grad(v)) * ufl.dx
