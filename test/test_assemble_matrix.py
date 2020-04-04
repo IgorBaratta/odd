@@ -70,7 +70,6 @@ def test_assemble_1d_bc(degree):
     facets = numpy.where(mesh.topology.on_boundary(tdim-1))[0]
     dofs = dolfinx.fem.locate_dofs_topological(V, tdim-1, facets)
     values = numpy.zeros(dofs.size)
-    values[1] = 1.
 
     # Assemble matrix and apply Dirichlet BC
     A = odd.assemble_matrix(a).real
@@ -80,5 +79,13 @@ def test_assemble_1d_bc(degree):
     b = odd.assemble_vector(L)
     odd.apply_bc(b, dofs, values)
 
-    x = spsolve(A, b)
-    numpy.allclose(x, b)
+    sol = spsolve(A, b)
+
+    # Get numerical solution with dolfinx
+    u0 = dolfinx.Function(V)
+    u0.vector.set(0.0)
+    bc = dolfinx.DirichletBC(u0, dofs)
+    u = dolfinx.Function(V)
+    dolfinx.solve(a == L, u, bcs=bc)
+
+    assert numpy.allclose(sol, u.vector.array.real)
