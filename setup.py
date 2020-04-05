@@ -39,6 +39,5 @@ setup(name="odd",
 
       install_requires=["numba",
                         "mpi4py",
-                        "petsc4py",
-                        "fenics-ffcx",
-                        "fenics-ufl"])
+                        "scipy",
+                        "numpy"])

@@ -1,9 +1,4 @@
 numpy
 numba
-cffi
-mpi4py>=3.0.2
-petsc4py>=3.11.0
-dolfinx>=2019.2.0.dev0
-git+https://github.com/FEniCS/ffcx.git#egg=fenics-ffc
-git+https://github.com/FEniCS/fiat.git#egg=fenics-fiat
-git+https://github.com/FEniCS/ufl.git#egg=fenics-ufl
+scipy
+mpi4py>=3.0.3
