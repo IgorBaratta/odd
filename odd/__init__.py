@@ -7,12 +7,15 @@
 """Main module for odd"""
 # flake8: noqa
 
+__all__ = ['IndexMap', 'AdditiveSchwarz', 'SMType', 'SubDomainData',
+           'PETScVectorScatter', 'RMAVectorScatter', 'ScatterType',
+           'LinearOperator', 'fem']
+
 # Import public interface
-from .dofmap import DofMap
+from .indexmap import IndexMap
 from .schwarz import AdditiveSchwarz, SMType
 from .subdomain import SubDomainData
 from .vector_scatter import PETScVectorScatter, RMAVectorScatter, ScatterType
-from .assemble_vector import assemble_vector
-from .assemble_matrix import assemble_matrix
-from .dirichlet_bc import apply_bc
-from .matrix_context import MatrixContext
+from .linear_operator import LinearOperator
+
+from odd import fem

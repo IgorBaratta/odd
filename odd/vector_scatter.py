@@ -1,4 +1,4 @@
-# Copyright (C) 2019 Igor A. Baratta
+# Copyright (C) 2020 Igor A. Baratta
 #
 # This file is part of odd
 #
@@ -9,7 +9,9 @@ from mpi4py import MPI
 from petsc4py import PETSc
 from petsc4py.PETSc import InsertMode, ScatterMode
 import numpy
-from .dofmap import DofMap
+from .indexmap import IndexMap
+
+import abc
 
 
 class ScatterType(Enum):
@@ -20,25 +22,32 @@ class ScatterType(Enum):
     SHM = 3
 
 
-class VectorScatter():
-    """ TODO : class docstring """
-    def __init__(self, comm: MPI.Intracomm, dofmap: DofMap):
-        self.dofmap = dofmap
-        self.comm = comm
+class VectorScatter(object, metaclass=abc.ABCMeta):
 
+    _asciiname = "vector scatter "
+    _objectname = "vectorscatter"
+
+    """ Manage communication of data between vectors in parallel. """
+    def __init__(self, indexmap: IndexMap):
+        self.initialized = False
+        super(VectorScatter, self).__init__()
+        self.indexmap = indexmap
+
+    @abc.abstractmethod
     def forward(self):
         pass
 
+    @abc.abstractmethod
     def reverse(self):
         pass
 
 
 class PETScVectorScatter(VectorScatter):
     """ TODO : class docstring """
-    def __init__(self, comm: MPI.Intracomm, dofmap: DofMap):
-        super().__init__(comm, dofmap)
+    def __init__(self, indexmap: IndexMap):
+        super().__init__(indexmap)
 
-        self._is_local = PETSc.IS().createGeneral(self.dofmap.indices)
+        self._is_local = PETSc.IS().createGeneral(self.indexmap.indices)
         self._vec_scatter = PETSc.Scatter()
 
     def forward(self, local_vec: PETSc.Vec, global_vec: PETSc.Vec):

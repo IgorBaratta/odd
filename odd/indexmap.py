@@ -1,18 +1,16 @@
-# Copyright (C) 2019 Igor A. Baratta
+# Copyright (C) 2020 Igor A. Baratta
 #
 # This file is part of odd
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
-from dolfinx.function import FunctionSpace
-import dolfinx
 import numpy
 
 
-class DofMap:
+class IndexMap(object):
     """ TODO : class docstring """
     def __init__(self,
-                 V: FunctionSpace):
+                 V):
         """ All communication within this class should
         be done at __init__"""
         self._dofmap = V.dofmap
@@ -26,9 +24,6 @@ class DofMap:
     @property
     def id(self):
         return self.comm.rank
-
-    def create_vector(self):
-        return dolfinx.cpp.la.create_vector(self._index_map)
 
     @property
     def indices(self) -> numpy.ndarray:

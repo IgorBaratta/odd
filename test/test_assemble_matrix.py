@@ -21,7 +21,7 @@ mesh_list = [dolfinx.UnitIntervalMesh(MPI.COMM_WORLD, 200),
 @pytest.mark.parametrize("mesh", mesh_list)
 @pytest.mark.parametrize("degree", [1, 2, 3, 4])
 def test_assemble_matrix(mesh, degree):
-    ''' Test matrix assembly of Helmholtz equation withou Dirichlet boundary conditions.'''
+    ''' Test matrix assembly of Helmholtz equation without Dirichlet boundary conditions.'''
 
     V = dolfinx.FunctionSpace(mesh, ("Lagrange", degree))
     u = ufl.TrialFunction(V)
@@ -31,7 +31,7 @@ def test_assemble_matrix(mesh, degree):
     a = ufl.inner(ufl.grad(u), ufl.grad(v))*ufl.dx + k**2 * ufl.inner(u, v)*ufl.dx \
         + 1j * ufl.inner(u, v) * ufl.ds
 
-    A = odd.assemble_matrix(a)
+    A = odd.fem.assemble_matrix(a)
 
     B = dolfinx.fem.assemble_matrix(a)
     B.assemble()
@@ -72,8 +72,8 @@ def test_assemble_1d_bc(degree):
     values = numpy.zeros(dofs.size)
 
     # Assemble matrix and apply Dirichlet BC
-    A = odd.assemble_matrix(a).real
-    odd.apply_bc(A, dofs)
+    A = odd.fem.assemble_matrix(a).real
+    odd.fem.apply_bc(A, dofs)
 
     # Assemble vector and apply Dirichlet BC
     b = odd.assemble_vector(L)

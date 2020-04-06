@@ -5,7 +5,7 @@
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
 from dolfinx import FunctionSpace
-from .dofmap import DofMap
+from .indexmap import IndexMap
 from petsc4py import PETSc
 from mpi4py import MPI
 import numpy
@@ -22,7 +22,7 @@ class SubDomainData():
         self.comm = V.mesh.mpi_comm()
 
         # Create domain decomposition DofMap
-        self.dofmap = DofMap(V)
+        self.indexmap = IndexMap(V)
 
     @property
     def id(self):

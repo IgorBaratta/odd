@@ -1,17 +1,18 @@
-from petsc4py import PETSc
+from scipy import sparse as sp
+from .indexmap import IndexMap
 
 
-class MatrixContext(object):
+class LinearOperator(object):
     """
-    This class gives the Python context for a PETSc Python matrix.
+    Base Class for Linear Operator
     """
-    def __init__(self, Ai: PETSc.Mat, Di: PETSc.Mat):
+    def __init__(self, Ai: sp.spmatrix, Di: sp.spmatrix, indexmap: IndexMap):
         """
         Ai is the local matrix, possibly with transmission conditiion
         Di is the partition of unity matrix
         """
         self.Ai = Ai
-        self.Di = Di
+        self.indexmap = indexmap
 
     def mult(self, mat, x, y):
         """
@@ -24,4 +25,4 @@ class MatrixContext(object):
                 if not y_local:
                     raise RuntimeError('X vector is not ghosted')
                 self.Ai.mult(x_local, y_local)
-        y.ghostUpdate(addv=PETSc.InsertMode.ADD, mode=PETSc.ScatterMode.REVERSE)
+        # y.ghostUpdate(addv=PETSc.InsertMode.ADD, mode=PETSc.ScatterMode.REVERSE)
