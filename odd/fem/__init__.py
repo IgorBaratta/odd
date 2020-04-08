@@ -7,7 +7,7 @@
 """Main module for odd"""
 # flake8: noqa
 
-__all__ = ['assemble_matrix', 'assemble_matrix', 'apply_bc']
+__all__ = ["assemble_matrix", "assemble_matrix", "apply_bc"]
 
 from .assemble_matrix import assemble_matrix
 from .assemble_vector import assemble_vector

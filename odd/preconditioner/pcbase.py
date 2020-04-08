@@ -8,7 +8,7 @@ import abc
 
 from petsc4py import PETSc
 
-__all__ = ("PCBase")
+__all__ = "PCBase"
 
 
 class PCBase(object, metaclass=abc.ABCMeta):
@@ -50,8 +50,7 @@ class PCBase(object, metaclass=abc.ABCMeta):
         typ = viewer.getType()
         if typ != PETSc.Viewer.Type.ASCII:
             return
-        viewer.printfASCII("Firedrake custom %s %s\n" %
-                           (self._asciiname, type(self).__name__))
+        viewer.printfASCII("Firedrake custom %s %s\n" % (self._asciiname, type(self).__name__))
 
     @abc.abstractmethod
     def apply(self, pc, X, Y):

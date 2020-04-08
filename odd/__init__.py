@@ -15,8 +15,12 @@ from odd.vector_scatter import VectorScatter, PETScVectorScatter
 
 from odd import fem
 
-__all__ = ['IndexMap',
-           'AdditiveSchwarz', 'SMType',
-           'VectorScatter', 'PETScVectorScatter',
-           'LinearOperator',
-           'fem']
+__all__ = [
+    "IndexMap",
+    "AdditiveSchwarz",
+    "SMType",
+    "VectorScatter",
+    "PETScVectorScatter",
+    "LinearOperator",
+    "fem",
+]

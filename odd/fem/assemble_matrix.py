@@ -13,8 +13,8 @@ from scipy.sparse import coo_matrix
 
 # CFFI - register complex types
 ffi = cffi.FFI()
-numba.cffi_support.register_type(ffi.typeof('double _Complex'), numba.types.complex128)
-numba.cffi_support.register_type(ffi.typeof('float _Complex'), numba.types.complex64)
+numba.cffi_support.register_type(ffi.typeof("double _Complex"), numba.types.complex128)
+numba.cffi_support.register_type(ffi.typeof("float _Complex"), numba.types.complex64)
 
 
 def assemble_matrix(a, active_entities={}):
@@ -54,8 +54,9 @@ def assemble_matrix(a, active_entities={}):
         active_cells = active_entities.get("cells", numpy.arange(num_cells))
         cell_integral = ufc_form.create_cell_integral(-1)
         kernel = cell_integral.tabulate_tensor
-        assemble_cells(data, kernel, (dof_array, ndofs_cell), (pos, x_dofs, x, nv),
-                       coefficients, constants, perm, active_cells)
+        assemble_cells(
+            data, kernel, (dof_array, ndofs_cell), (pos, x_dofs, x, nv), coefficients, constants, perm, active_cells,
+        )
 
     if ufc_form.num_exterior_facet_integrals:
         mesh.create_connectivity(tdim - 1, tdim)
@@ -63,8 +64,9 @@ def assemble_matrix(a, active_entities={}):
         facet_data = facet_info(mesh, active_facets)
         facet_integral = ufc_form.create_exterior_facet_integral(-1)
         kernel = facet_integral.tabulate_tensor
-        assemble_facets(data, kernel, (dof_array, ndofs_cell), (pos, x_dofs, x, nv),
-                        coefficients, constants, perm, facet_data)
+        assemble_facets(
+            data, kernel, (dof_array, ndofs_cell), (pos, x_dofs, x, nv), coefficients, constants, perm, facet_data,
+        )
 
     rows, cols = sparsity_pattern(dof_array, ndofs_cell)
     A = coo_matrix((data, (rows, cols)), shape=(N, N)).tocsr()
@@ -80,12 +82,18 @@ def assemble_cells(data, kernel, dofmap, mesh, coeffs, constants, perm, active_c
     local_mat = numpy.zeros((ndofs_cell, ndofs_cell), dtype=data.dtype)
     coordinate_dofs = numpy.zeros((nv, x.shape[1]), dtype=numpy.float64)
     for idx in active_cells:
-        coordinate_dofs[:] = x[x_dofs[pos[idx]:pos[idx + 1]], :]
+        coordinate_dofs[:] = x[x_dofs[pos[idx] : pos[idx + 1]], :]
         local_mat.fill(0.0)
-        kernel(ffi.from_buffer(local_mat), ffi.from_buffer(coeffs[idx, :]),
-               ffi.from_buffer(constants), ffi.from_buffer(coordinate_dofs),
-               ffi.from_buffer(entity_local_index), ffi.from_buffer(perm), 0)
-        data[idx * local_mat.size:idx * local_mat.size + local_mat.size] += local_mat.ravel()
+        kernel(
+            ffi.from_buffer(local_mat),
+            ffi.from_buffer(coeffs[idx, :]),
+            ffi.from_buffer(constants),
+            ffi.from_buffer(coordinate_dofs),
+            ffi.from_buffer(entity_local_index),
+            ffi.from_buffer(perm),
+            0,
+        )
+        data[idx * local_mat.size : idx * local_mat.size + local_mat.size] += local_mat.ravel()
 
 
 @numba.njit(fastmath=True)
@@ -99,12 +107,18 @@ def assemble_facets(data, kernel, dofmap, mesh, coeffs, constants, perm, facet_d
     for i in range(nfacets):
         local_facet, cell_idx = facet_data[i]
         entity_local_index[0] = local_facet
-        coordinate_dofs[:] = x[x_dofs[pos[cell_idx]:pos[cell_idx + 1]], :]
+        coordinate_dofs[:] = x[x_dofs[pos[cell_idx] : pos[cell_idx + 1]], :]
         Ae.fill(0.0)
-        kernel(ffi.from_buffer(Ae), ffi.from_buffer(coeffs[cell_idx, :]),
-               ffi.from_buffer(constants), ffi.from_buffer(coordinate_dofs),
-               ffi.from_buffer(entity_local_index), ffi.from_buffer(perm), 0)
-        data[cell_idx * Ae.size:cell_idx * Ae.size + Ae.size] += Ae.ravel()
+        kernel(
+            ffi.from_buffer(Ae),
+            ffi.from_buffer(coeffs[cell_idx, :]),
+            ffi.from_buffer(constants),
+            ffi.from_buffer(coordinate_dofs),
+            ffi.from_buffer(entity_local_index),
+            ffi.from_buffer(perm),
+            0,
+        )
+        data[cell_idx * Ae.size : cell_idx * Ae.size + Ae.size] += Ae.ravel()
 
 
 def sparsity_pattern(dof_array, ndofs_cell):
@@ -126,8 +140,8 @@ def facet_info(mesh, active_facets):
     @numba.njit(fastmath=True)
     def facet2cell(facet_data):
         for j, facet in enumerate(active_facets):
-            cells = f2c[f2c_offsets[facet]:f2c_offsets[facet + 1]]
-            local_facets = c2f[c2f_offsets[cells[0]]:c2f_offsets[cells[0] + 1]]
+            cells = f2c[f2c_offsets[facet] : f2c_offsets[facet + 1]]
+            local_facets = c2f[c2f_offsets[cells[0]] : c2f_offsets[cells[0] + 1]]
             local_facet = numpy.where(facet == local_facets)[0][0]
             facet_data[j, 0] = local_facet
             facet_data[j, 1] = cells[0]

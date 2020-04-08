@@ -47,11 +47,11 @@ class IndexMap(object):
         comm.Allgatherv(send_buffer, recv_buffer)
         self._all_ranges = numpy.zeros(comm.size + 1, dtype=numpy.int64)
         self._all_ranges[1:] = numpy.cumsum(recv_buffer)
-        self._ghost_owners = numpy.searchsorted(self._all_ranges, self._ghosts, side='right') - 1
+        self._ghost_owners = numpy.searchsorted(self._all_ranges, self._ghosts, side="right") - 1
         send_neighbors, neighbor_counts = numpy.unique(self._ghost_owners, return_counts=True)
 
         if comm.rank in self._ghost_owners:
-            raise ValueError('Ghost in local range of process ' + str(comm.rank))
+            raise ValueError("Ghost in local range of process " + str(comm.rank))
 
         if isinstance(comm, MPI.Distgraphcomm):
             # Check if comm is already a distributed graph topology communicator
@@ -71,7 +71,7 @@ class IndexMap(object):
             self.comm = comm.Create_dist_graph_adjacent(self._neighbors, self._neighbors)
 
         self._send_count = numpy.zeros(self._neighbors.size, dtype=numpy.int32)
-        send_inds: ndarray = numpy.searchsorted(self._neighbors, send_neighbors, side='right') - 1
+        send_inds: ndarray = numpy.searchsorted(self._neighbors, send_neighbors, side="right") - 1
         self._send_count[send_inds] = neighbor_counts
         self._recv_count = recv_buffer[self.neighbors]
 
@@ -95,7 +95,7 @@ class IndexMap(object):
         Returns the range of indices owned by this processor
         """
         rank = self.comm.rank
-        return self._all_ranges[rank:rank+2].copy()
+        return self._all_ranges[rank : rank + 2].copy()
 
     @property
     def num_ghosts(self) -> int:
@@ -122,7 +122,7 @@ class IndexMap(object):
     @property
     def indices(self) -> ndarray:
         indices = numpy.arange(self.local_size) + self._all_ranges[self.comm.rank]
-        indices[self.owned_size:] = self._ghosts
+        indices[self.owned_size :] = self._ghosts
         return indices
 
     # noinspection PyAttributeOutsideInit
@@ -134,7 +134,6 @@ class IndexMap(object):
             owners_ordered = self._ghost_owners.argsort()
             send_data = self._ghosts[owners_ordered].copy()
             recv_data = numpy.zeros(numpy.sum(self._recv_count), dtype=numpy.int64)
-            self.comm.Neighbor_alltoallv([send_data, (self._send_count, None)],
-                                         [recv_data, (self._recv_count, None)])
+            self.comm.Neighbor_alltoallv([send_data, (self._send_count, None)], [recv_data, (self._recv_count, None)])
             self._shared_indices = recv_data
             return self._shared_indices

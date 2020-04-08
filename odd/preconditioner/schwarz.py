@@ -11,6 +11,7 @@ from odd import IndexMap
 
 class SMType(Enum):
     """ TODO : class docstring """
+
     restricted = 1
     additive = 2
     multiplicative = 3
@@ -18,5 +19,6 @@ class SMType(Enum):
 
 class AdditiveSchwarz(object):
     """ TODO : class docstring """
+
     def __init__(self, index_map: IndexMap):
         pass

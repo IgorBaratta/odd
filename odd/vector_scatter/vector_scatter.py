@@ -21,6 +21,7 @@ class VectorScatter(object, metaclass=abc.ABCMeta):
     Manage communication of data between vectors in parallel.
     This class should not be instantiated.
     """
+
     def __init__(self, index_map: IndexMap):
         self._initialized = False
         super(VectorScatter, self).__init__()
