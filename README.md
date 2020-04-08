@@ -1,13 +1,10 @@
 <p align="center">
   <a href="https://github.com/IgorBaratta/odd/"><img src="https://user-images.githubusercontent.com/15614155/74994585-39e82c80-542d-11ea-8cde-a2c2a6f95dbf.png" alt="odd- 1280x640" width="70%"/></a>
 </p>
-> Optimized Domain Decomposition in Python
 
-[![NPM Version][npm-image]][npm-url]
-[![Build Status][travis-image]][travis-url]
-[![Downloads Stats][npm-downloads]][npm-url]
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-One to two paragraph statement about your product and what it does.
+A simple distributed (MPI) domain decomposition library in python.
 
 ## Installation
 
@@ -46,11 +43,3 @@ Distributed under the LGPL 3.0 license. See ``LICENSE`` for more information.
 3. Commit your changes (`git commit -am 'Add some fooBar'`)
 4. Push to the branch (`git push origin feature/fooBar`)
 5. Create a new Pull Request
-
-<!-- Markdown link & img dfn's -->
-[npm-image]: https://img.shields.io/npm/v/datadog-metrics.svg?style=flat-square
-[npm-url]: https://npmjs.org/package/datadog-metrics
-[npm-downloads]: https://img.shields.io/npm/dm/datadog-metrics.svg?style=flat-square
-[travis-image]: https://img.shields.io/travis/dbader/node-datadog-metrics/master.svg?style=flat-square
-[travis-url]: https://travis-ci.org/dbader/node-datadog-metrics
-[wiki]: https://github.com/yourname/yourproject/wiki
