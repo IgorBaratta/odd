@@ -25,6 +25,7 @@ run_demo_mpi: &run_demo_mpi
 run_test_serial: &run_test_serial
   name: run tests serial
   command: |
+            echo 'export COVERALLS_REPO_TOKEN="LlTaroD0HB9tJQtRoLUPB3jmIiyAz9TAD"' >> $BASH_ENV
             python3 -m pytest --cov=odd/ -v . test/
             coveralls
 
