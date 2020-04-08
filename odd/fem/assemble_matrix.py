@@ -121,12 +121,10 @@ def facet_info(mesh, active_facets):
     c2f_offsets = mesh.topology.connectivity(tdim, tdim - 1).offsets()
     f2c = mesh.topology.connectivity(tdim - 1, tdim).array()
     f2c_offsets = mesh.topology.connectivity(tdim - 1, tdim).offsets()
-    cell_map = mesh.topology.index_map(tdim)
-    num_cells = cell_map.size_local + cell_map.num_ghosts
+    facet_data = numpy.zeros((active_facets.size, 2), dtype=numpy.int32)
 
-    @numba.njit(fastmath=True, cache=True)
-    def facet2cell():
-        facet_data = numpy.zeros((active_facets.size, 2), dtype=numpy.int32)
+    @numba.njit(fastmath=True)
+    def facet2cell(facet_data):
         for j, facet in enumerate(active_facets):
             cells = f2c[f2c_offsets[facet]:f2c_offsets[facet + 1]]
             local_facets = c2f[c2f_offsets[cells[0]]:c2f_offsets[cells[0] + 1]]
@@ -135,4 +133,4 @@ def facet_info(mesh, active_facets):
             facet_data[j, 1] = cells[0]
         return facet_data
 
-    return facet2cell()
+    return facet2cell(facet_data)

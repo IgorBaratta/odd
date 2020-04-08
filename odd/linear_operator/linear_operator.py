@@ -13,7 +13,6 @@ from numpy.core.multiarray import ndarray
 class LinearOperator(object):
     r"""
     Base Class for Linear Operator
-    
     The parallel layout of the linear operator is handle by the IndexMap.
     """
     def __init__(self, local_mat: sparse.spmatrix, index_map: IndexMap):

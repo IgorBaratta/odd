@@ -138,26 +138,3 @@ class IndexMap(object):
                                          [recv_data, (self._recv_count, None)])
             self._shared_indices = recv_data
             return self._shared_indices
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

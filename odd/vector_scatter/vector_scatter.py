@@ -33,7 +33,3 @@ class VectorScatter(object, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def reverse(self, array: ndarray, insert_mode: str) -> None:
         pass
-
-
-
-
