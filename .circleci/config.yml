@@ -20,8 +20,8 @@ run_demo_mpi: &run_demo_mpi
 run_test_serial: &run_test_serial
   name: run tests serial
   command: |
-            cd test
-            python3 -m pytest -v .
+            python3 -m pytest --cov=odd/ -v . test/
+            coveralls
 
 version: 2.1
 jobs:
