@@ -1,9 +1,14 @@
 flake8: &flake8
   name: Verifies pep8, pyflakes and circular complexit
   command: |
-            pip3 install flake8 black
+            python3 -m pip install flake8 black
             python3 -m flake8 odd
             python3 -m black -l 119 odd
+
+install_dependencies: &install_dependencies
+    name: Install Test Dependencies
+    command: |
+          python3 -m pip install 'coverage<5' pytest pytest-cov pytest-xdist coveralls --upgrade
 
 install_odd: &install_odd
   name: Install odd
@@ -31,6 +36,7 @@ jobs:
     steps:
       - checkout
       - run: *flake8
+      - run: *install_dependencies
       - run: *install_odd
       - run: *run_test_serial
 
