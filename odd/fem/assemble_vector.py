@@ -10,11 +10,11 @@ import numpy
 import ufl
 
 
-def assemble_vector(L: ufl.Form) -> PETSc.Vec:
-    '''
+def assemble_vector(form: ufl.Form, dtype=numpy.complex128) -> numpy.ndarray:
+    """
     Create and assemble vector given a rank 1 ufl form
-    '''
-    _L = dolfinx.Form(L)._cpp_object
+    """
+    _L = dolfinx.Form(form)._cpp_object
     if _L.rank != 1:
         raise ValueError
 
@@ -25,7 +25,7 @@ def assemble_vector(L: ufl.Form) -> PETSc.Vec:
     b.ghostUpdate(addv=PETSc.InsertMode.INSERT, mode=PETSc.ScatterMode.FORWARD)
     N = dofmap.index_map.size_local + dofmap.index_map.num_ghosts
 
-    np_b = numpy.zeros(N, PETSc.ScalarType)
+    np_b = numpy.zeros(N, dtype)
     with b.localForm() as b_local:
         if not b_local:
             np_b = b.array

@@ -7,15 +7,16 @@
 """Main module for odd"""
 # flake8: noqa
 
-__all__ = ['IndexMap', 'AdditiveSchwarz', 'SMType', 'SubDomainData',
-           'PETScVectorScatter', 'RMAVectorScatter', 'ScatterType',
-           'fem', 'LinearOperator']
-
 # Import public interface
 from .index_map import IndexMap
-from .schwarz import AdditiveSchwarz, SMType
-from .subdomain import SubDomainData
-from .vector_scatter import PETScVectorScatter, RMAVectorScatter, ScatterType
-from .linear_operator import LinearOperator
+from odd.linear_operator import LinearOperator
+from odd.preconditioner.schwarz import AdditiveSchwarz, SMType
+from odd.vector_scatter import VectorScatter, PETScVectorScatter
 
 from odd import fem
+
+__all__ = ['IndexMap',
+           'AdditiveSchwarz', 'SMType',
+           'VectorScatter', 'PETScVectorScatter',
+           'LinearOperator',
+           'fem']

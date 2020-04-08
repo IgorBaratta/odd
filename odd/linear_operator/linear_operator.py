@@ -15,3 +15,11 @@ class LinearOperator(object):
         self.index_map = index_map
 
         # Check if sizes match:
+
+    @staticmethod
+    def check_sizes(local_mat: sp.spmatrix, index_map: IndexMap):
+        return None
+
+    @staticmethod
+    def check_sizes(local_mat: sp.spmatrix, index_map: IndexMap):
+        return None
