@@ -7,8 +7,9 @@
 from enum import Enum
 from mpi4py import MPI
 from petsc4py import PETSc
-from .subdomain import SubDomainData
-from .vector_scatter import PETScVectorScatter, RMAVectorScatter, ScatterType
+
+from odd import IndexMap
+from odd.vector_scatter import PETScVectorScatter
 
 
 class SMType(Enum):
@@ -18,9 +19,9 @@ class SMType(Enum):
     multiplicative = 3
 
 
-class AdditiveSchwarz():
+class AdditiveSchwarz(object):
     """ TODO : class docstring """
-    def __init__(self, data: SubDomainData, A: PETSc.Mat):
+    def __init__(self, index_map: IndexMap):
 
         self.dofmap = data.dofmap
         self.comm = data.comm
