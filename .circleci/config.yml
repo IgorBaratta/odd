@@ -3,7 +3,7 @@ flake8: &flake8
   command: |
             pip3 install flake8 black
             python3 -m flake8 odd
-            python3 -m black -l 119 odd 
+            python3 -m black -l 119 odd
 
 install_odd: &install_odd
   name: Install odd
@@ -24,8 +24,6 @@ run_test_serial: &run_test_serial
             python3 -m pytest -v .
 
 version: 2.1
-orbs:
-  codecov: codecov/codecov@1.0.5
 jobs:
   build:
     docker:
