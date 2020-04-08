@@ -29,7 +29,7 @@ def test_assemble_matrix(mesh, degree):
     v = ufl.TestFunction(V)
     k = dolfinx.Constant(mesh, 10 * numpy.pi)
 
-    a = ufl.inner(ufl.grad(u), ufl.grad(v))*ufl.dx + k**2 * ufl.inner(u, v)*ufl.dx \
+    a = ufl.inner(ufl.grad(u), ufl.grad(v)) * ufl.dx + k**2 * ufl.inner(u, v) * ufl.dx \
         + 1j * ufl.inner(u, v) * ufl.ds
 
     A = odd.fem.assemble_matrix(a)
@@ -68,12 +68,12 @@ def test_assemble_1d_bc(degree):
     # Define boundary condition on x = lim[0] and x = lim[1]
     u0 = dolfinx.Function(V)
     u0.vector.set(0.0)
-    facets = numpy.where(mesh.topology.on_boundary(tdim-1))[0]
-    dofs = dolfinx.fem.locate_dofs_topological(V, tdim-1, facets)
+    facets = numpy.where(mesh.topology.on_boundary(tdim - 1))[0]
+    dofs = dolfinx.fem.locate_dofs_topological(V, tdim - 1, facets)
     values = numpy.zeros(dofs.size)
 
     # Assemble matrix and apply Dirichlet BC
-    A = odd.fem.assemble_matrix(a).real
+    A = odd.fem.assemble_matrix(a)
     odd.fem.apply_bc(A, dofs)
 
     # Assemble vector and apply Dirichlet BC
@@ -89,4 +89,4 @@ def test_assemble_1d_bc(degree):
     u = dolfinx.Function(V)
     dolfinx.solve(a == L, u, bcs=bc)
 
-    assert numpy.allclose(sol, u.vector.array.real)
+    assert numpy.allclose(sol.real, u.vector.array.real, atol=1e-05)
