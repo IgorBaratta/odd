@@ -11,12 +11,14 @@ from odd import IndexMap
 
 
 @pytest.mark.parametrize("owned_size", [10, 50, 100])
+@pytest.mark.skipif(MPI.COMM_WORLD.size == 1,
+                    reason="This test should only be run in parallel.")
 def test_circular_domain(owned_size):
     comm = MPI.COMM_WORLD
     rank = comm.rank
-    num_ghosts = owned_size/10
+    num_ghosts = owned_size / 10
     neighbor = (rank + 1) % comm.size
-    ghosts = neighbor*owned_size + numpy.arange(num_ghosts)
+    ghosts = neighbor * owned_size + numpy.arange(num_ghosts)
 
     idx_map = IndexMap(comm, comm, ghosts)
 
