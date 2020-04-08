@@ -23,7 +23,9 @@ run_test_serial: &run_test_serial
             cd test
             python3 -m pytest -v .
 
-version: 2
+version: 2.1
+orbs:
+  codecov: codecov/codecov@1.0.5
 jobs:
   build:
     docker:
@@ -35,7 +37,7 @@ jobs:
       - run: *run_test_serial
 
 workflows:
-  version: 2
+  version: 2.1
   build_and_test:
     jobs:
       - build
