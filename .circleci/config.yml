@@ -1,9 +1,9 @@
 flake8: &flake8
   name: Verifies pep8, pyflakes and circular complexit
   command: |
-            pip3 install flake8
+            pip3 install flake8 black
             python3 -m flake8 odd
-            python3 -m flake8 demo
+            python3 -m black odd
 
 install_odd: &install_odd
   name: Install odd
