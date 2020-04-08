@@ -5,4 +5,4 @@
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
 
-# Helper functions to allow using JAX wiht odd
+# Helper functions to allow using JAX with odd

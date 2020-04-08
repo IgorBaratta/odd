@@ -9,10 +9,10 @@
 
 __all__ = ['IndexMap', 'AdditiveSchwarz', 'SMType', 'SubDomainData',
            'PETScVectorScatter', 'RMAVectorScatter', 'ScatterType',
-           'LinearOperator', 'fem']
+           'fem', 'LinearOperator']
 
 # Import public interface
-from .indexmap import IndexMap
+from .index_map import IndexMap
 from .schwarz import AdditiveSchwarz, SMType
 from .subdomain import SubDomainData
 from .vector_scatter import PETScVectorScatter, RMAVectorScatter, ScatterType

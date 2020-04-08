@@ -12,6 +12,7 @@ import pytest
 from mpi4py import MPI
 from scipy.sparse.linalg import spsolve
 
+
 mesh_list = [dolfinx.UnitIntervalMesh(MPI.COMM_WORLD, 200),
              dolfinx.UnitSquareMesh(MPI.COMM_WORLD, 64, 64),
              dolfinx.UnitCubeMesh(MPI.COMM_WORLD, 10, 10, 10)]

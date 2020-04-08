@@ -1,4 +1,5 @@
+mpi4py>=3.0.3
 numpy
 numba
+pytest
 scipy
-mpi4py>=3.0.3

@@ -9,7 +9,7 @@ from mpi4py import MPI
 from petsc4py import PETSc
 from petsc4py.PETSc import InsertMode, ScatterMode
 import numpy
-from .indexmap import IndexMap
+from .index_map import IndexMap
 
 import abc
 

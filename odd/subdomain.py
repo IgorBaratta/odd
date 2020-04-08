@@ -5,7 +5,7 @@
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
 from dolfinx import FunctionSpace
-from .indexmap import IndexMap
+from .index_map import IndexMap
 from petsc4py import PETSc
 from mpi4py import MPI
 import numpy
