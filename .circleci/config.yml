@@ -13,7 +13,7 @@ install_dependencies: &install_dependencies
 install_odd: &install_odd
   name: Install odd
   command: |
-            pip3 install -e . --no-deps
+            python3 -m pip install -e . --no-deps
 
 run_demo_mpi: &run_demo_mpi
   name: run demos MPI
