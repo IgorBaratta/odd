@@ -6,10 +6,8 @@
 
 import cffi
 import dolfinx
-import ffcx
 import numpy
 import numba
-import ufl
 import numba.cffi_support
 from scipy.sparse import coo_matrix
 
@@ -19,11 +17,14 @@ numba.cffi_support.register_type(ffi.typeof('double _Complex'), numba.types.comp
 numba.cffi_support.register_type(ffi.typeof('float _Complex'), numba.types.complex64)
 
 
-def assemble_matrix(a, active_entities={}, dtype=numpy.complex128):
-    ufc_form = ffcx_jit(a, dtype)
+def assemble_matrix(a, active_entities={}):
+    ufc_form = dolfinx.jit.ffcx_jit(a)
     # noinspection PyProtectedMember
     _a = dolfinx.Form(a)._cpp_object
     mesh = _a.mesh()
+
+    # Fixme: Allow different scalar types
+    dtype = numpy.complex128
 
     tdim = mesh.topology.dim
     gdim = mesh.geometry.dim
@@ -45,8 +46,8 @@ def assemble_matrix(a, active_entities={}, dtype=numpy.complex128):
     N = numpy.max(dof_array) + 1
 
     data = numpy.zeros(ndofs_cell * dof_array.size, dtype=dtype)
-    coefficients = dolfinx.cpp.fem.pack_coefficients(_a).astype(dtype)
-    constants = dolfinx.cpp.fem.pack_constants(_a).astype(dtype)
+    coefficients = dolfinx.cpp.fem.pack_coefficients(_a)
+    constants = dolfinx.cpp.fem.pack_constants(_a)
     perm = numpy.array([0], dtype=numpy.uint8)
 
     if ufc_form.num_cell_integrals:
@@ -76,15 +77,15 @@ def assemble_cells(data, kernel, dofmap, mesh, coeffs, constants, perm, active_c
     (pos, x_dofs, x, nv) = mesh
 
     entity_local_index = numpy.array([0], dtype=numpy.int32)
-    Ae = numpy.zeros((ndofs_cell, ndofs_cell), dtype=data.dtype)
+    local_mat = numpy.zeros((ndofs_cell, ndofs_cell), dtype=data.dtype)
     coordinate_dofs = numpy.zeros((nv, x.shape[1]), dtype=numpy.float64)
     for idx in active_cells:
         coordinate_dofs[:] = x[x_dofs[pos[idx]:pos[idx + 1]], :]
-        Ae.fill(0.0)
-        kernel(ffi.from_buffer(Ae), ffi.from_buffer(coeffs[idx, :]),
+        local_mat.fill(0.0)
+        kernel(ffi.from_buffer(local_mat), ffi.from_buffer(coeffs[idx, :]),
                ffi.from_buffer(constants), ffi.from_buffer(coordinate_dofs),
                ffi.from_buffer(entity_local_index), ffi.from_buffer(perm), 0)
-        data[idx * Ae.size:idx * Ae.size + Ae.size] += Ae.ravel()
+        data[idx * local_mat.size:idx * local_mat.size + local_mat.size] += local_mat.ravel()
 
 
 @numba.njit(fastmath=True)
@@ -120,9 +121,11 @@ def facet_info(mesh, active_facets):
     c2f_offsets = mesh.topology.connectivity(tdim, tdim - 1).offsets()
     f2c = mesh.topology.connectivity(tdim - 1, tdim).array()
     f2c_offsets = mesh.topology.connectivity(tdim - 1, tdim).offsets()
+    cell_map = mesh.topology.index_map(tdim)
+    num_cells = cell_map.size_local + cell_map.num_ghosts
 
-    @numba.njit(fastmath=True)
-    def facet2cell(num_cells):
+    @numba.njit(fastmath=True, cache=True)
+    def facet2cell():
         facet_data = numpy.zeros((active_facets.size, 2), dtype=numpy.int32)
         for j, facet in enumerate(active_facets):
             cells = f2c[f2c_offsets[facet]:f2c_offsets[facet + 1]]
@@ -132,22 +135,4 @@ def facet_info(mesh, active_facets):
             facet_data[j, 1] = cells[0]
         return facet_data
 
-    return facet2cell(mesh.num_cells())
-
-
-def ffcx_jit(ufl_form: ufl.Form, dtype: numpy.dtype):
-    parameters = ffcx.default_parameters()
-    dtype = numpy.dtype(dtype)
-    if "complex" in dtype.name:
-        parameters["scalar_type"] = "double complex"
-
-    # CFFI compiler options / flags
-    extra_compile_args = ['-g0', '-O3', '-march=native']
-    cffi_options = dict(cffi_extra_compile_args=extra_compile_args, cffi_verbose=False,
-                        cffi_debug=False)
-    if isinstance(ufl_form, ufl.Form):
-        r = ffcx.codegeneration.jit.compile_forms([ufl_form], parameters=parameters,
-                                                  cache_dir=None, **cffi_options)
-
-    compiled_form = r[0][0]
-    return compiled_form
+    return facet2cell()
