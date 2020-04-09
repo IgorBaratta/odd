@@ -20,7 +20,7 @@ __all__ = [
     "AdditiveSchwarz",
     "SMType",
     "VectorScatter",
-    "PETScVectorScatter",
     "LinearOperator",
+    "PETScVectorScatter",
     "fem",
 ]

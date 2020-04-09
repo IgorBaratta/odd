@@ -8,7 +8,7 @@ flake8: &flake8
 install_dependencies: &install_dependencies
     name: Install Test Dependencies
     command: |
-          python3 -m pip install 'coverage<5' pytest pytest-cov pytest-xdist coveralls --upgrade
+          python3 -m pip install coverage pytest pytest-cov pytest-xdist coveralls --upgrade
 
 install_odd: &install_odd
   name: Install odd

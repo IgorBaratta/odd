@@ -138,13 +138,13 @@ def facet_info(mesh, active_facets):
     facet_data = numpy.zeros((active_facets.size, 2), dtype=numpy.int32)
 
     @numba.njit(fastmath=True)
-    def facet2cell(facet_data):
+    def facet2cell(data):
         for j, facet in enumerate(active_facets):
             cells = f2c[f2c_offsets[facet] : f2c_offsets[facet + 1]]
             local_facets = c2f[c2f_offsets[cells[0]] : c2f_offsets[cells[0] + 1]]
             local_facet = numpy.where(facet == local_facets)[0][0]
-            facet_data[j, 0] = local_facet
-            facet_data[j, 1] = cells[0]
-        return facet_data
+            data[j, 0] = local_facet
+            data[j, 1] = cells[0]
+        return data
 
     return facet2cell(facet_data)
