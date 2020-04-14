@@ -25,8 +25,6 @@ run_demo_mpi: &run_demo_mpi
 run_tests: &run_tests
   name: run tests in serial and parallel
   command: |
-#            python3 -m pytest --cov=odd/ -v . test/
-#            coveralls
             mpirun -n 3 python3 -m pytest --cov=odd/ -v . test/
             coveralls
 
