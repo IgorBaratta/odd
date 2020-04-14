@@ -65,7 +65,7 @@ def assemble_cells(data, kernel, dofmap: DofMapWrapper, mesh: MeshWrapper, coeff
     entity_local_index = numpy.array([0], dtype=numpy.int32)
     local_mat = numpy.zeros((dofmap.num_cell_dofs, dofmap.num_cell_dofs), dtype=data.dtype)
     for idx in active_cells:
-        coordinate_dofs = x[x_dofs[pos[idx]: pos[idx + 1]], :]
+        coordinate_dofs = x[x_dofs[pos[idx] : pos[idx + 1]], :]
         local_mat.fill(0.0)
         kernel(
             ffi.from_buffer(local_mat),
@@ -76,7 +76,7 @@ def assemble_cells(data, kernel, dofmap: DofMapWrapper, mesh: MeshWrapper, coeff
             ffi.from_buffer(perm),
             0,
         )
-        data[idx * local_mat.size: idx * local_mat.size + local_mat.size] += local_mat.ravel()
+        data[idx * local_mat.size : idx * local_mat.size + local_mat.size] += local_mat.ravel()
 
 
 @numba.njit(fastmath=True)
@@ -88,7 +88,7 @@ def assemble_facets(data, kernel, dofmap: DofMapWrapper, mesh: MeshWrapper, coef
     for i in range(num_active_facets):
         local_facet, cell_idx = facet_data[i]
         entity_local_index[0] = local_facet
-        coordinate_dofs = x[x_dofs[pos[cell_idx]: pos[cell_idx + 1]], :]
+        coordinate_dofs = x[x_dofs[pos[cell_idx] : pos[cell_idx + 1]], :]
         Ae.fill(0.0)
         kernel(
             ffi.from_buffer(Ae),
@@ -99,7 +99,7 @@ def assemble_facets(data, kernel, dofmap: DofMapWrapper, mesh: MeshWrapper, coef
             ffi.from_buffer(perm),
             0,
         )
-        data[cell_idx * Ae.size: cell_idx * Ae.size + Ae.size] += Ae.ravel()
+        data[cell_idx * Ae.size : cell_idx * Ae.size + Ae.size] += Ae.ravel()
 
 
 def sparsity_pattern(dofmap: DofMapWrapper):

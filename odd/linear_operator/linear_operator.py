@@ -24,6 +24,7 @@ class LinearOperator(sparse.csr_matrix):
 
     def __call__(self, x: ndarray) -> ndarray:
         return self.apply(x)
+
     #
     # def count_nonzero(self):
     #     pass
