@@ -13,9 +13,9 @@ from mpi4py import MPI
 from scipy.sparse.linalg import spsolve
 
 
-mesh_list = [dolfinx.UnitIntervalMesh(MPI.COMM_WORLD, 200),
-             dolfinx.UnitSquareMesh(MPI.COMM_WORLD, 64, 64),
-             dolfinx.UnitCubeMesh(MPI.COMM_WORLD, 10, 10, 10)]
+mesh_list = [dolfinx.UnitIntervalMesh(MPI.COMM_WORLD, 100),
+             dolfinx.UnitSquareMesh(MPI.COMM_WORLD, 10, 10),
+             dolfinx.UnitCubeMesh(MPI.COMM_WORLD, 5, 5, 4)]
 
 
 @pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="This test should only be run in serial.")
