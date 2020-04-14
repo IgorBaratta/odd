@@ -24,6 +24,7 @@ mesh_list = [dolfinx.UnitIntervalMesh(MPI.COMM_WORLD, 100),
 def test_assemble_matrix(mesh, degree):
     """ Test matrix assembly of Helmholtz equation without Dirichlet boundary conditions."""
 
+    mesh.create_connectivity_all()
     V = dolfinx.FunctionSpace(mesh, ("Lagrange", degree))
     u = ufl.TrialFunction(V)
     v = ufl.TestFunction(V)
@@ -52,7 +53,7 @@ def test_assemble_1d_bc(degree):
     comm = MPI.COMM_WORLD
     lim = [0.0, numpy.pi]
     mesh = dolfinx.IntervalMesh(comm, 100, lim)
-    mesh.topology.create_connectivity_all()
+    mesh.create_connectivity_all()
     tdim = mesh.topology.dim
 
     [x] = ufl.SpatialCoordinate(mesh.ufl_domain())

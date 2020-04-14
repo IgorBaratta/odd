@@ -22,7 +22,6 @@ CellWrapper = collections.namedtuple("CellWrapper", "num_vertices")
 
 
 def mesh_wrapper(mesh: dolfinx.cpp.mesh.Mesh):
-    mesh.create_connectivity_all()  # Should this really be done here?
     topology = topology_wrapper(mesh.topology)
     geometry = geometry_wrapper(mesh.geometry)
     cell = CellWrapper(num_vertices=mesh.ufl_cell().num_vertices())
