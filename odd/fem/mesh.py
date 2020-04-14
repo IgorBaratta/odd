@@ -45,7 +45,3 @@ def geometry_wrapper(geometry: dolfinx.cpp.mesh.Geometry):
     x_dofs = geometry.dofmap.array()
     pos = geometry.dofmap.offsets()
     return GeometryWrapper(dim, x, x_dofs, pos)
-
-
-
-
