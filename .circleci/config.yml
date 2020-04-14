@@ -41,9 +41,10 @@ jobs:
       - run: *flake8
       - run: *install_dependencies
       - run: *install_odd
-      - run: *run_tests
       - coveralls/upload:
           parallel: true
+      - run: *run_tests
+
 
 workflows:
   version: 2.1
