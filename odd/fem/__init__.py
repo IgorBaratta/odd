@@ -7,11 +7,10 @@
 """Main module for odd"""
 # flake8: noqa
 
-__all__ = ["assemble_matrix", "assemble_matrix", "apply_bc"]
+__all__ = ["assemble_matrix", "assemble_matrix", "apply_bc", "MeshWrapper"]
 
-try:
-    from .assemble_matrix import assemble_matrix
-    from .assemble_vector import assemble_vector
-    from .dirichlet_bc import apply_bc
-finally:
-    print('dolfinx not installed!')
+
+from .assemble_matrix import assemble_matrix
+from .assemble_vector import assemble_vector
+from .dirichlet_bc import apply_bc
+from .mesh import MeshWrapper
