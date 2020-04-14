@@ -33,8 +33,8 @@ def assemble_matrix(a, active_entities={}):
 
     # Unpack geometry data
     x = mesh.geometry.x[:, :gdim]
-    pos = mesh.geometry.dofmap().offsets()
-    x_dofs = mesh.geometry.dofmap().array()
+    pos = mesh.geometry.dofmap.offsets()
+    x_dofs = mesh.geometry.dofmap.array()
     nv = mesh.ufl_cell().num_vertices()
 
     # Unpack dofmap data
