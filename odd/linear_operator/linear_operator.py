@@ -40,4 +40,3 @@ class LinearOperator(sparse.csr_matrix):
     #     else:
     #         print("The local matrix size and parallel layout do not match.")
     #         return False
-
