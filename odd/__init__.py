@@ -13,7 +13,7 @@ from odd.linear_operator import LinearOperator
 from odd.preconditioner.schwarz import AdditiveSchwarz, SMType
 from odd.vector_scatter import VectorScatter, PETScVectorScatter
 
-# from odd import fem
+from odd import fem
 
 __all__ = [
     "IndexMap",
