@@ -59,7 +59,7 @@ def assemble_matrix(a, active_entities={}):
         )
 
     if ufc_form.num_exterior_facet_integrals:
-        mesh.create_connectivity(tdim - 1, tdim)
+        mesh.topology.create_connectivity_all()
         active_facets = active_entities.get("facets", numpy.where(mesh.topology.on_boundary(tdim - 1))[0])
         facet_data = facet_info(mesh, active_facets)
         facet_integral = ufc_form.create_exterior_facet_integral(-1)
