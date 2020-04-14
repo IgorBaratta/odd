@@ -22,10 +22,11 @@ run_demo_mpi: &run_demo_mpi
             mpirun -n 3 python3 poisson.py
             mpirun -n 3 python3 poisson_petsc.py
 
-run_test_serial: &run_test_serial
-  name: run tests serial
+run_tests: &run_tests
+  name: run tests in serial and parallel
   command: |
             python3 -m pytest --cov=odd/ -v . test/
+            mpirun -n 3 python3 -m pytest --cov=odd/ -v . test/
             coveralls
 
 version: 2.1
@@ -40,7 +41,7 @@ jobs:
       - run: *flake8
       - run: *install_dependencies
       - run: *install_odd
-      - run: *run_test_serial
+      - run: *run_tests
 
 workflows:
   version: 2.1
