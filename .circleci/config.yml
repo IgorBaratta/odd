@@ -8,7 +8,7 @@ flake8: &flake8
 install_dependencies: &install_dependencies
     name: Install Test Dependencies
     command: |
-          python3 -m pip install coverage pytest pytest-cov pytest-xdist coveralls --upgrade
+          python3 -m pip install coverage pytest pytest-cov pytest-xdist coveralls coveralls-merge --upgrade
 
 install_odd: &install_odd
   name: Install odd
@@ -25,7 +25,8 @@ run_demo_mpi: &run_demo_mpi
 run_tests: &run_tests
   name: run tests in serial and parallel
   command: |
-            mpirun -n 3 python3 -m pytest --cov=odd/ -v . test/
+            python3 -m pytest -v . test/
+            mpirun -n 3 python3 -m pytest . test/
             coveralls
 
 version: 2.1
