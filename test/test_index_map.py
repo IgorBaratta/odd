@@ -20,10 +20,14 @@ def test_circular_domain(owned_size):
     neighbor = (rank + 1) % comm.size
     ghosts = neighbor * owned_size + numpy.arange(num_ghosts)
 
-    idx_map = IndexMap(comm, comm, ghosts)
+    l2gmap = IndexMap(comm, owned_size, ghosts)
 
-    assert idx_map.owned_size == owned_size
-    assert idx_map.local_size == owned_size + num_ghosts
+    assert l2gmap.owned_size == owned_size
+    assert l2gmap.local_size == owned_size + num_ghosts
 
-    assert (rank + 1) % comm.size in idx_map.neighbors
-    assert (rank - 1) % comm.size in idx_map.neighbors
+    assert (rank + 1) % comm.size in l2gmap.neighbors
+    assert (rank - 1) % comm.size in l2gmap.neighbors
+    assert (l2gmap.shared_indices == l2gmap.indices[:l2gmap.num_shared_indices]).all()
+
+
+

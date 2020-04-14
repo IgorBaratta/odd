@@ -42,33 +42,30 @@ class IndexMap(object):
         """
         self._ghosts = numpy.array(ghosts, dtype=numpy.int64)
         self._owned_size = owned_size
+
+        # Define ranges and ghost owners
         recv_buffer = numpy.ndarray(comm.size, dtype=numpy.int32)
         send_buffer = numpy.array(owned_size, dtype=numpy.int32)
-        comm.Allgatherv(send_buffer, recv_buffer)
-        self._all_ranges = numpy.zeros(comm.size + 1, dtype=numpy.int64)
-        self._all_ranges[1:] = numpy.cumsum(recv_buffer)
-        self._ghost_owners = numpy.searchsorted(self._all_ranges, self._ghosts, side="right") - 1
+        comm.Allgather(send_buffer, recv_buffer)
+        all_ranges = numpy.zeros(comm.size + 1, dtype=numpy.int64)
+        all_ranges[1:] = numpy.cumsum(recv_buffer)
+        self._ghost_owners = numpy.searchsorted(all_ranges, self._ghosts, side="right") - 1
+        self._local_range = all_ranges[comm.rank:comm.rank + 2].copy()
         send_neighbors, neighbor_counts = numpy.unique(self._ghost_owners, return_counts=True)
+
+        # "Free" memory - see https://docs.python.org/3/library/gc.html
+        del all_ranges
 
         if comm.rank in self._ghost_owners:
             raise ValueError("Ghost in local range of process " + str(comm.rank))
 
-        if isinstance(comm, MPI.Distgraphcomm):
-            # Check if comm is already a distributed graph topology communicator
-            # and get neighboring processes
-            self.comm = comm
-            self._neighbors = reduce(numpy.union1d, comm.inoutedges)
-            send_buffer = numpy.zeros(comm.size, dtype=numpy.int32)
-            send_buffer[send_neighbors] = neighbor_counts
-        else:
-            # Check if it is already a topology communicator and get neighbor processes
-            send_buffer = numpy.zeros(comm.size, dtype=numpy.int32)
-            send_buffer[send_neighbors] = neighbor_counts
-            comm.Alltoall(send_buffer, recv_buffer)
-            recv_neighbors: ndarray = numpy.flatnonzero(recv_buffer)
-            self._num_shared_indices = numpy.sum(recv_neighbors)
-            self._neighbors = reduce(numpy.union1d, (send_neighbors, recv_neighbors))
-            self.comm = comm.Create_dist_graph_adjacent(self._neighbors, self._neighbors)
+        send_buffer = numpy.zeros(comm.size, dtype=numpy.int32)
+        send_buffer[send_neighbors] = neighbor_counts
+        comm.Alltoall(send_buffer, recv_buffer)
+        recv_neighbors: ndarray = numpy.flatnonzero(recv_buffer)
+        self._num_shared_indices = numpy.sum(recv_buffer)
+        self._neighbors = reduce(numpy.union1d, (send_neighbors, recv_neighbors))
+        self.comm = comm.Create_dist_graph_adjacent(self._neighbors, self._neighbors)
 
         self._send_count = numpy.zeros(self._neighbors.size, dtype=numpy.int32)
         send_inds: ndarray = numpy.searchsorted(self._neighbors, send_neighbors, side="right") - 1
@@ -94,8 +91,7 @@ class IndexMap(object):
         """
         Returns the range of indices owned by this processor
         """
-        rank = self.comm.rank
-        return self._all_ranges[rank : rank + 2].copy()
+        return self._local_range
 
     @property
     def num_ghosts(self) -> int:
@@ -117,12 +113,15 @@ class IndexMap(object):
         """
         Returns the range of indices owned by this processor
         """
-        return self._num_shared_indices.size
+        return self._num_shared_indices
 
     @property
     def indices(self) -> ndarray:
-        indices = numpy.arange(self.local_size) + self._all_ranges[self.comm.rank]
-        indices[self.owned_size :] = self._ghosts
+        """
+        Returns global indices including ghosts
+        """
+        indices = numpy.arange(self.local_size) + self.local_range[0]
+        indices[self.owned_size:] = self._ghosts
         return indices
 
     # noinspection PyAttributeOutsideInit
@@ -131,9 +130,10 @@ class IndexMap(object):
         try:
             return self._shared_indices
         except AttributeError:
-            owners_ordered = self._ghost_owners.argsort()
-            send_data = self._ghosts[owners_ordered].copy()
+            # Order ghosts by owner rank
+            owners_order = self._ghost_owners.argsort()
+            send_data = self._ghosts[owners_order]
             recv_data = numpy.zeros(numpy.sum(self._recv_count), dtype=numpy.int64)
             self.comm.Neighbor_alltoallv([send_data, (self._send_count, None)], [recv_data, (self._recv_count, None)])
             self._shared_indices = recv_data
-            return self._shared_indices
+            return recv_data
