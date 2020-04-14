@@ -12,7 +12,7 @@ comm = MPI.COMM_WORLD
 lim = [0.0, numpy.pi]
 mesh = dolfinx.IntervalMesh(comm, 100, lim)
 mesh.geometry.coord_mapping = dolfinx.fem.create_coordinate_map(mesh)
-mesh.create_connectivity_all()
+mesh.topology.create_connectivity_all()
 tdim = mesh.topology.dim
 
 [x] = ufl.SpatialCoordinate(mesh)
