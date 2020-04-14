@@ -11,78 +11,61 @@ import numba
 import numba.cffi_support
 from scipy.sparse import coo_matrix
 
+from .mesh import mesh_wrapper, MeshWrapper
+from .dofmap import dofmap_wrapper, DofMapWrapper
+
 # CFFI - register complex types
 ffi = cffi.FFI()
 numba.cffi_support.register_type(ffi.typeof("double _Complex"), numba.types.complex128)
 numba.cffi_support.register_type(ffi.typeof("float _Complex"), numba.types.complex64)
 
 
-def assemble_matrix(a, active_entities={}):
-    ufc_form = dolfinx.jit.ffcx_jit(a)
-    # noinspection PyProtectedMember
-    _a = dolfinx.Form(a)._cpp_object
-    mesh = _a.mesh()
+def assemble_matrix(a, active_entities=None):
 
-    # Fixme: Allow different scalar types
+    if active_entities is None:
+        active_entities = {}
+
+    # Todo: Allow different types
     dtype = numpy.complex128
 
-    tdim = mesh.topology.dim
-    gdim = mesh.geometry.dim
-    cell_map = mesh.topology.index_map(tdim)
-    num_cells = cell_map.size_local + cell_map.num_ghosts
+    ufc_form = dolfinx.jit.ffcx_jit(a)
+    _a = dolfinx.Form(a)._cpp_object
+    mesh = mesh_wrapper(_a.mesh())
+    dofmap = dofmap_wrapper(_a.function_space(0).dofmap)
 
-    # Unpack geometry data
-    x = mesh.geometry.x[:, :gdim]
-    pos = mesh.geometry.dofmap.offsets()
-    x_dofs = mesh.geometry.dofmap.array()
-    nv = mesh.ufl_cell().num_vertices()
-
-    # Unpack dofmap data
-    dofmap0 = _a.function_space(0).dofmap
-    dofmap1 = _a.function_space(1).dofmap
-    assert dofmap0 == dofmap1
-    ndofs_cell = dofmap0.dof_layout.num_dofs
-    dof_array = dofmap0.list().array()
-    N = numpy.max(dof_array) + 1
-
-    data = numpy.zeros(ndofs_cell * dof_array.size, dtype=dtype)
+    data = numpy.zeros(dofmap.num_cell_dofs * dofmap.dof_array.size, dtype=dtype)
     coefficients = dolfinx.cpp.fem.pack_coefficients(_a)
     constants = dolfinx.cpp.fem.pack_constants(_a)
     perm = numpy.array([0], dtype=numpy.uint8)
 
     if ufc_form.num_cell_integrals:
-        active_cells = active_entities.get("cells", numpy.arange(num_cells))
+        active_cells = active_entities.get("cells", numpy.arange(mesh.topology.num_cells))
         cell_integral = ufc_form.create_cell_integral(-1)
         kernel = cell_integral.tabulate_tensor
         assemble_cells(
-            data, kernel, (dof_array, ndofs_cell), (pos, x_dofs, x, nv), coefficients, constants, perm, active_cells,
+            data, kernel, dofmap, mesh, coefficients, constants, perm, active_cells,
         )
 
     if ufc_form.num_exterior_facet_integrals:
-        mesh.topology.create_connectivity_all()
-        active_facets = active_entities.get("facets", numpy.where(mesh.topology.on_boundary(tdim - 1))[0])
-        facet_data = facet_info(mesh, active_facets)
+        active_facets = active_entities.get("facets", mesh.topology.boundary_facets)
+        facet_data = facet_info(_a.mesh(), active_facets)
         facet_integral = ufc_form.create_exterior_facet_integral(-1)
         kernel = facet_integral.tabulate_tensor
         assemble_facets(
-            data, kernel, (dof_array, ndofs_cell), (pos, x_dofs, x, nv), coefficients, constants, perm, facet_data,
+            data, kernel, dofmap, mesh, coefficients, constants, perm, facet_data,
         )
 
-    rows, cols = sparsity_pattern(dof_array, ndofs_cell)
-    A = coo_matrix((data, (rows, cols)), shape=(N, N)).tocsr()
-    return A
+    local_mat = coo_matrix((data, sparsity_pattern(dofmap)), shape=(dofmap.size, dofmap.size)).tocsr()
+    return local_mat
 
 
 @numba.njit(fastmath=True)
-def assemble_cells(data, kernel, dofmap, mesh, coeffs, constants, perm, active_cells):
-    (dof_array, ndofs_cell) = dofmap
-    (pos, x_dofs, x, nv) = mesh
-
+def assemble_cells(data, kernel, dofmap: DofMapWrapper, mesh: MeshWrapper, coeffs, constants, perm, active_cells):
+    (dim, x, x_dofs, pos) = mesh.geometry
     entity_local_index = numpy.array([0], dtype=numpy.int32)
-    local_mat = numpy.zeros((ndofs_cell, ndofs_cell), dtype=data.dtype)
-    coordinate_dofs = numpy.zeros((nv, x.shape[1]), dtype=numpy.float64)
+    local_mat = numpy.zeros((dofmap.num_cell_dofs, dofmap.num_cell_dofs), dtype=data.dtype)
     for idx in active_cells:
-        coordinate_dofs[:] = x[x_dofs[pos[idx] : pos[idx + 1]], :]
+        coordinate_dofs = x[x_dofs[pos[idx] : pos[idx + 1]], :]
         local_mat.fill(0.0)
         kernel(
             ffi.from_buffer(local_mat),
@@ -97,17 +80,15 @@ def assemble_cells(data, kernel, dofmap, mesh, coeffs, constants, perm, active_c
 
 
 @numba.njit(fastmath=True)
-def assemble_facets(data, kernel, dofmap, mesh, coeffs, constants, perm, facet_data):
-    (dof_array, ndofs_cell) = dofmap
-    (pos, x_dofs, x, nv) = mesh
+def assemble_facets(data, kernel, dofmap: DofMapWrapper, mesh: MeshWrapper, coeffs, constants, perm, facet_data):
     entity_local_index = numpy.array([0], dtype=numpy.int32)
-    Ae = numpy.zeros((ndofs_cell, ndofs_cell), dtype=data.dtype)
-    coordinate_dofs = numpy.zeros((nv, x.shape[1]), dtype=numpy.float64)
-    nfacets = facet_data.shape[0]
-    for i in range(nfacets):
+    Ae = numpy.zeros((dofmap.num_cell_dofs, dofmap.num_cell_dofs), dtype=data.dtype)
+    gdim, x, x_dofs, pos = mesh.geometry
+    num_active_facets = facet_data.shape[0]
+    for i in range(num_active_facets):
         local_facet, cell_idx = facet_data[i]
         entity_local_index[0] = local_facet
-        coordinate_dofs[:] = x[x_dofs[pos[cell_idx] : pos[cell_idx + 1]], :]
+        coordinate_dofs = x[x_dofs[pos[cell_idx] : pos[cell_idx + 1]], :]
         Ae.fill(0.0)
         kernel(
             ffi.from_buffer(Ae),
@@ -121,14 +102,18 @@ def assemble_facets(data, kernel, dofmap, mesh, coeffs, constants, perm, facet_d
         data[cell_idx * Ae.size : cell_idx * Ae.size + Ae.size] += Ae.ravel()
 
 
-def sparsity_pattern(dof_array, ndofs_cell):
-    num_cells = dof_array.size // ndofs_cell
-    rows = numpy.repeat(dof_array, ndofs_cell)
-    cols = numpy.tile(numpy.reshape(dof_array, (num_cells, ndofs_cell)), ndofs_cell)
+def sparsity_pattern(dofmap: DofMapWrapper):
+    """
+    Returns local COO sparsity pattern
+    """
+    num_cells = dofmap.dof_array.size // dofmap.num_cell_dofs
+    rows = numpy.repeat(dofmap.dof_array, dofmap.num_cell_dofs)
+    cols = numpy.tile(numpy.reshape(dofmap.dof_array, (num_cells, dofmap.num_cell_dofs)), dofmap.num_cell_dofs)
     return rows, cols.ravel()
 
 
 def facet_info(mesh, active_facets):
+    # FIXME: Refactor this function using the wrapper
     # get facet-cell and cell-facet connections
     tdim = mesh.topology.dim
     c2f = mesh.topology.connectivity(tdim, tdim - 1).array()

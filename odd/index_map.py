@@ -50,7 +50,7 @@ class IndexMap(object):
         all_ranges = numpy.zeros(comm.size + 1, dtype=numpy.int64)
         all_ranges[1:] = numpy.cumsum(recv_buffer)
         self._ghost_owners = numpy.searchsorted(all_ranges, self._ghosts, side="right") - 1
-        self._local_range = all_ranges[comm.rank:comm.rank + 2].copy()
+        self._local_range = all_ranges[comm.rank : comm.rank + 2].copy()
         send_neighbors, neighbor_counts = numpy.unique(self._ghost_owners, return_counts=True)
 
         # "Free" memory - see https://docs.python.org/3/library/gc.html
@@ -121,7 +121,7 @@ class IndexMap(object):
         Returns global indices including ghosts
         """
         indices = numpy.arange(self.local_size) + self.local_range[0]
-        indices[self.owned_size:] = self._ghosts
+        indices[self.owned_size :] = self._ghosts
         return indices
 
     # noinspection PyAttributeOutsideInit
