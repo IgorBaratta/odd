@@ -71,7 +71,7 @@ class IndexMap(object):
 
         # The ghosts in the current process are owned by reverse_neighbors
         # Reverse counts is the number of ghost indices grouped by ghost owner.
-        self.reverse_neighbors, self.reverse_counts = numpy.unique( self._ghost_owners, return_counts=True)
+        self.reverse_neighbors, self.reverse_counts = numpy.unique(self._ghost_owners, return_counts=True)
         send_buffer = numpy.zeros(comm.size, dtype=numpy.int32)
         send_buffer[self.reverse_neighbors] = self.reverse_counts
 
@@ -83,7 +83,7 @@ class IndexMap(object):
         self.forward_neighbors = numpy.flatnonzero(recv_buffer)
         self.forward_counts = recv_buffer[self.forward_neighbors]
 
-        # Create a communicator for both forward and reverse mode.
+        # Create a communicator for both forward and reverse modes.
         # sources -	ranks of processes for which the calling process is a destination
         # destinations - ranks of processes for which the calling process is a destination
         self.reverse_comm = comm.Create_dist_graph_adjacent(sources=self.forward_neighbors,
