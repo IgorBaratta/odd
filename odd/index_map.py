@@ -6,7 +6,7 @@
 
 import numpy
 from mpi4py import MPI
-from functools import reduce
+from functools import cached_property, reduce
 from typing import List, Union
 
 from numpy.core.multiarray import ndarray
@@ -27,6 +27,7 @@ class IndexMap(object):
     Notes
     -----
     This class is a simplified version  of dolfinx IndexMap.
+    Local indices are 32 bit integers and global indices are 64 bit integers.
     """
 
     def __init__(self, comm: MPI.Intracomm, owned_size: int, ghosts: Union[List, ndarray]):
@@ -46,11 +47,12 @@ class IndexMap(object):
         # Define ranges and ghost owners
         recv_buffer = numpy.ndarray(comm.size, dtype=numpy.int32)
         send_buffer = numpy.array(owned_size, dtype=numpy.int32)
+
         comm.Allgather(send_buffer, recv_buffer)
         all_ranges = numpy.zeros(comm.size + 1, dtype=numpy.int64)
         all_ranges[1:] = numpy.cumsum(recv_buffer)
         self._ghost_owners = numpy.searchsorted(all_ranges, self._ghosts, side="right") - 1
-        self._local_range = all_ranges[comm.rank : comm.rank + 2].copy()
+        self._local_range = all_ranges[comm.rank : comm.rank + 2]
         send_neighbors, neighbor_counts = numpy.unique(self._ghost_owners, return_counts=True)
 
         # "Free" memory - see https://docs.python.org/3/library/gc.html
@@ -78,6 +80,13 @@ class IndexMap(object):
         Return list of neighbor processes
         """
         return self._neighbors
+
+    @property
+    def ghost_owners(self) -> ndarray:
+        """
+        Return list of neighbor processes
+        """
+        return self._ghost_owners
 
     @property
     def ghosts(self) -> ndarray:
@@ -109,11 +118,8 @@ class IndexMap(object):
         return self.owned_size + self.num_ghosts
 
     @property
-    def num_shared_indices(self) -> int:
-        """
-        Returns the range of indices owned by this processor
-        """
-        return self._num_shared_indices
+    def shift(self):
+        return self.local_range[0]
 
     @property
     def indices(self) -> ndarray:
@@ -124,16 +130,31 @@ class IndexMap(object):
         indices[self.owned_size :] = self._ghosts
         return indices
 
-    # noinspection PyAttributeOutsideInit
+    def ordered_indices(self):
+        return numpy.sort(self.indices)
+
+    @cached_property
+    def reverse_indices(self) -> ndarray:
+        # Order ghosts by owner rank
+        owners_order = self._ghost_owners.argsort()
+        send_data = self._ghosts[owners_order]
+        recv_data = numpy.zeros(numpy.sum(self._recv_count), dtype=numpy.int64)
+        self.comm.Neighbor_alltoallv([send_data, (self._send_count, None)], [recv_data, (self._recv_count, None)])
+        return recv_data - self.shift
+
     @property
     def shared_indices(self) -> ndarray:
-        try:
-            return self._shared_indices
-        except AttributeError:
-            # Order ghosts by owner rank
-            owners_order = self._ghost_owners.argsort()
-            send_data = self._ghosts[owners_order]
-            recv_data = numpy.zeros(numpy.sum(self._recv_count), dtype=numpy.int64)
-            self.comm.Neighbor_alltoallv([send_data, (self._send_count, None)], [recv_data, (self._recv_count, None)])
-            self._shared_indices = recv_data
-            return recv_data
+        return numpy.unique(self.reverse_indices)
+
+    @property
+    def num_shared_indices(self) -> int:
+        """
+        Returns the range of indices owned by this processor
+        """
+        return self.shared_indices.size
+
+    def reverse_count(self, block_size=1):
+        return self._send_count * block_size
+
+    def forward_count(self, block_size=1):
+        return self._recv_count * block_size

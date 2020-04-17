@@ -23,9 +23,9 @@ def assemble_vector(form: ufl.Form, dtype=numpy.complex128) -> numpy.ndarray:
     b = dolfinx.fem.create_vector(_L)
     dolfinx.cpp.fem.assemble_vector(b, _L)
     b.ghostUpdate(addv=PETSc.InsertMode.INSERT, mode=PETSc.ScatterMode.FORWARD)
-    N = dofmap.index_map.size_local + dofmap.index_map.num_ghosts
+    vec_size = dofmap.index_map.size_local + dofmap.index_map.num_ghosts
 
-    np_b = numpy.zeros(N, dtype)
+    np_b = numpy.zeros(vec_size, dtype)
     with b.localForm() as b_local:
         if not b_local:
             np_b = b.array
