@@ -1,6 +1,6 @@
 # Copyright (C) 2020 Igor A. Baratta
 #
-# This file is part of DOLFINX (https://www.fenicsproject.org)
+# This file is part of odd
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
@@ -26,4 +26,3 @@ plt.ylabel('some numbers')
 plt.grid(True)
 plt.tight_layout()
 plt.show()
-
