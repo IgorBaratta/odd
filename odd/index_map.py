@@ -27,7 +27,8 @@ class IndexMap(object):
     Notes
     -----
     This class is a simplified version  of dolfinx IndexMap.
-    Local indices are 32 bit integers and global indices are 64 bit integers.
+    Todo: Allow user to set integer types.
+          Local indices are 32 bit integers and global indices are 64 bit integers.
     """
 
     def __init__(self, comm: MPI.Intracomm, owned_size: int, ghosts: Union[List, ndarray]):
