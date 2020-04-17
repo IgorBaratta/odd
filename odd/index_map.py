@@ -31,7 +31,11 @@ class IndexMap(object):
           Local indices are 32 bit integers and global indices are 64 bit integers.
     """
 
-    def __init__(self, comm: MPI.Intracomm, owned_size: int, ghosts: Union[List, ndarray]):
+    def __init__(self,
+                 comm: MPI.Intracomm,
+                 owned_size: int,
+                 ghosts: Union[List, ndarray],
+                 ghost_owners: Union[List, ndarray] = None):
         """
         Parameters
         ----------
@@ -42,45 +46,57 @@ class IndexMap(object):
         ghosts:
             The global indices of ghost entries, or empty array if not needed.
         """
+
         self._ghosts = numpy.array(ghosts, dtype=numpy.int64)
         self._owned_size = owned_size
+        self._ghost_owners = ghost_owners
 
-        # Define ranges and ghost owners
-        recv_buffer = numpy.ndarray(comm.size, dtype=numpy.int32)
-        send_buffer = numpy.array(owned_size, dtype=numpy.int32)
+        if self._ghost_owners is None:
+            # Define ranges and ghost owners
+            recv_buffer = numpy.ndarray(comm.size, dtype=numpy.int32)
+            send_buffer = numpy.array(owned_size, dtype=numpy.int32)
 
-        comm.Allgather(send_buffer, recv_buffer)
-        all_ranges = numpy.zeros(comm.size + 1, dtype=numpy.int64)
-        all_ranges[1:] = numpy.cumsum(recv_buffer)
-        self._ghost_owners = numpy.searchsorted(all_ranges, self._ghosts, side="right") - 1
-        self._local_range = all_ranges[comm.rank : comm.rank + 2]
-        send_neighbors, neighbor_counts = numpy.unique(self._ghost_owners, return_counts=True)
+            # Allgather is expected to be O(p)
+            comm.Allgather(send_buffer, recv_buffer)
 
-        # "Free" memory - see https://docs.python.org/3/library/gc.html
-        del all_ranges
+            all_ranges = numpy.zeros(comm.size + 1, dtype=numpy.int64)
+            all_ranges[1:] = numpy.cumsum(recv_buffer)
+            self._ghost_owners = numpy.searchsorted(all_ranges, self._ghosts, side="right") - 1
+            self._local_range = all_ranges[comm.rank: comm.rank + 2]
+            # The memory of all_ranges is collected by the garbage collector,
+            # there is no need to free memory, see https://docs.python.org/3/library/gc.html
 
         if comm.rank in self._ghost_owners:
             raise ValueError("Ghost in local range of process " + str(comm.rank))
 
+        # The ghosts in the current process are owned by reverse_neighbors
+        # Reverse counts is the number of ghost indices grouped by ghost owner.
+        self.reverse_neighbors, self.reverse_counts = numpy.unique( self._ghost_owners, return_counts=True)
         send_buffer = numpy.zeros(comm.size, dtype=numpy.int32)
-        send_buffer[send_neighbors] = neighbor_counts
-        comm.Alltoall(send_buffer, recv_buffer)
-        recv_neighbors: ndarray = numpy.flatnonzero(recv_buffer)
-        self._num_shared_indices = numpy.sum(recv_buffer)
-        self._neighbors = reduce(numpy.union1d, (send_neighbors, recv_neighbors))
-        self.comm = comm.Create_dist_graph_adjacent(self._neighbors, self._neighbors)
+        send_buffer[self.reverse_neighbors] = self.reverse_counts
 
-        self._send_count = numpy.zeros(self._neighbors.size, dtype=numpy.int32)
-        send_inds: ndarray = numpy.searchsorted(self._neighbors, send_neighbors, side="right") - 1
-        self._send_count[send_inds] = neighbor_counts
-        self._recv_count = recv_buffer[self.neighbors]
+        # Define how much data to receive from each process in reverse mode
+        recv_buffer = numpy.ndarray(comm.size, dtype=numpy.int32)
+        # Alltoall is expected to be O(p log(p))
+        comm.Alltoall(send_buffer, recv_buffer)
+        # The current process owns indices that are ghosts in forward_neighbors
+        self.forward_neighbors = numpy.flatnonzero(recv_buffer)
+        self.forward_counts = recv_buffer[self.forward_neighbors]
+
+        # Create a communicator for both forward and reverse mode.
+        # sources -	ranks of processes for which the calling process is a destination
+        # destinations - ranks of processes for which the calling process is a destination
+        self.reverse_comm = comm.Create_dist_graph_adjacent(sources=self.forward_neighbors,
+                                                            destinations=self.reverse_neighbors)
+        self.forward_comm = comm.Create_dist_graph_adjacent(sources=self.reverse_neighbors,
+                                                            destinations=self.forward_neighbors)
 
     @property
     def neighbors(self) -> ndarray:
         """
         Return list of neighbor processes
         """
-        return self._neighbors
+        return reduce(numpy.union1d, (self.reverse_neighbors, self.forward_neighbors))
 
     @property
     def ghost_owners(self) -> ndarray:
@@ -139,8 +155,12 @@ class IndexMap(object):
         # Order ghosts by owner rank
         owners_order = self._ghost_owners.argsort()
         send_data = self._ghosts[owners_order]
-        recv_data = numpy.zeros(numpy.sum(self._recv_count), dtype=numpy.int64)
-        self.comm.Neighbor_alltoallv([send_data, (self._send_count, None)], [recv_data, (self._recv_count, None)])
+        recv_data = numpy.zeros(numpy.sum(self.forward_counts), dtype=numpy.int64)
+
+        # Send reverse_counts ghost indices to reverse neighbors and receive forward_counts
+        # owned indices from forward neighbors
+        self.reverse_comm.Neighbor_alltoallv([send_data, (self.reverse_counts, None)],
+                                             [recv_data, (self.forward_counts, None)])
         return recv_data - self.shift
 
     @property
@@ -155,7 +175,7 @@ class IndexMap(object):
         return self.shared_indices.size
 
     def reverse_count(self, block_size=1):
-        return self._send_count * block_size
+        return self.reverse_counts * block_size
 
     def forward_count(self, block_size=1):
-        return self._recv_count * block_size
+        return self.forward_counts * block_size
