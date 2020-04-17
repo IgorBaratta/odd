@@ -1,5 +1,4 @@
 from petsc4py import PETSc
-
 from numpy.core.multiarray import ndarray
 
 from .vector_scatter import VectorScatter, InsertMode
@@ -7,22 +6,31 @@ from ..index_map import IndexMap
 
 
 class PETScVectorScatter(VectorScatter):
+    """
+    Fallback to PETSc vector scatter
+    """
     def __init__(self, index_map: IndexMap):
+        """
+
+        Parameters
+        ----------
+        index_map : IndexMap
+        """
         super().__init__(index_map)
-        self._is_local = PETSc.IS().createGeneral(self._index_map.indices)
-        self.vec = PETSc.Vec().create()
-        self.vec.setType(PETSc.Vec.Type.MPI)
-        self.vec.setSizes((index_map.owned_size, None))
-        self.vec.setMPIGhost(index_map.ghosts)
-        self._initialized = True
 
-    def forward(self, array: ndarray, insert_mode: InsertMode = InsertMode.INSERT):
-        self.vec.setArray(array)
-        self.vec.ghostUpdate(insert_mode, PETSc.ScatterMode.FORWARD)
+    def forward(self, array: ndarray, insert_mode: InsertMode = InsertMode.ADD):
+        ghosts = self.index_map.ghosts.astype(PETSc.IntType)
+        vec = PETSc.Vec().createGhostWithArray(ghosts, array)
+        vec.ghostUpdate(InsertMode.ADD.value, PETSc.ScatterMode.REVERSE)
+        with vec.localForm() as vec_local:
+            array[:] = vec_local.array.astype(array.dtype)
 
-    def reverse(self, array: ndarray, insert_mode: InsertMode = InsertMode.ADD):
-        self.vec.setArray(array)
-        self.vec.ghostUpdate(insert_mode, PETSc.ScatterMode.REVERSE)
+    def reverse(self, array: ndarray, insert_mode: InsertMode = InsertMode.INSERT):
+        ghosts = self.index_map.ghosts.astype(PETSc.IntType)
+        vec = PETSc.Vec().createGhostWithArray(ghosts, array)
+        vec.ghostUpdate(insert_mode.value, PETSc.ScatterMode.FORWARD)
+        with vec.localForm() as vec_local:
+            array[:] = vec_local.array.astype(array.dtype)
 
     @property
     def initialized(self):

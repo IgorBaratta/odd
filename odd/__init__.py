@@ -11,7 +11,7 @@
 from .index_map import IndexMap
 from odd.linear_operator import LinearOperator
 from odd.preconditioner.schwarz import AdditiveSchwarz, SMType
-from odd.vector_scatter import VectorScatter, PETScVectorScatter
+from odd.vector_scatter import VectorScatter, NeighborVectorScatter, PETScVectorScatter
 
 from odd import fem
 
@@ -21,6 +21,7 @@ __all__ = [
     "SMType",
     "VectorScatter",
     "LinearOperator",
+    "NeighborVectorScatter",
     "PETScVectorScatter",
     "fem",
 ]

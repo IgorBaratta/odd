@@ -12,25 +12,24 @@ from odd.index_map import IndexMap
 
 
 class InsertMode(Enum):
-    ADD = 1
-    INSERT = 2
+    INSERT = 1
+    ADD = 2
 
 
 class VectorScatter(object, metaclass=abc.ABCMeta):
     """
     Manage communication of data between vectors in parallel.
-    This class should not be instantiated.
     """
 
     def __init__(self, index_map: IndexMap):
         self._initialized = False
         super(VectorScatter, self).__init__()
-        self._index_map = index_map
+        self.index_map = index_map
 
     @abc.abstractmethod
-    def forward(self, array: ndarray, insert_mode: str) -> None:
+    def forward(self, array: ndarray, insert_mode: InsertMode) -> None:
         pass
 
     @abc.abstractmethod
-    def reverse(self, array: ndarray, insert_mode: str) -> None:
+    def reverse(self, array: ndarray, insert_mode: InsertMode) -> None:
         pass
