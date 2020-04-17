@@ -29,22 +29,21 @@ def test_circular_domain(owned_size):
     assert (rank + 1) % comm.size in l2gmap.neighbors
     assert (rank - 1) % comm.size in l2gmap.neighbors
 
-    assert numpy.all(l2gmap.reverse_indices == numpy.arange(num_ghosts))
+    assert numpy.all(numpy.sort(l2gmap.reverse_indices) == numpy.arange(num_ghosts))
 
 
-@pytest.mark.parametrize("global_size", [50, 100])
+@pytest.mark.parametrize("global_size", [100, 200])
 @pytest.mark.parametrize("overlap", [2, 5, 10])
 @pytest.mark.skipif(MPI.COMM_WORLD.size == 1,
                     reason="This test should only be run in parallel.")
 def test_vec_scatter(global_size, overlap):
     # Problem data
     comm = MPI.COMM_WORLD
-
     l2gmap = partition1d(comm, global_size, overlap)
     scatter = NeighborVectorScatter(l2gmap)
     petsc_scatter = PETScVectorScatter(l2gmap)
 
-    bi = numpy.ones(l2gmap.local_size) * comm.rank
+    bi = numpy.ones(l2gmap.local_size, dtype=numpy.complex128) * comm.rank
 
     # Update Ghosts with MPI-3 Neighborhood Communication
     array = bi.copy()
@@ -61,13 +60,14 @@ def test_vec_scatter(global_size, overlap):
 
     # Update Ghosts with MPI-3 Neighborhood Communication
     random_ghosts = numpy.random.rand(l2gmap.ghosts.size)
-    array = bi.astype(numpy.complex128)
-    array[l2gmap.owned_size:] = random_ghosts
+    array = bi.copy()
+    array[l2gmap.owned_size:] = random_ghosts.copy()
     scatter.forward(array)
 
     # Update Ghosts with PETSc Vector Scatter
-    petsc_array = bi.astype(numpy.complex128)
-    petsc_array[l2gmap.owned_size:] = random_ghosts
+    petsc_array = bi.copy()
+    petsc_array[l2gmap.owned_size:] = random_ghosts.copy()
     petsc_scatter.forward(petsc_array)
 
     assert (numpy.all(petsc_array == array))
+
