@@ -51,6 +51,7 @@ class IndexMap(object):
         self._owned_size = owned_size
         self._ghost_owners = ghost_owners
 
+        self._local_range = numpy.zeros(2, dtype=numpy.int64)
         if self._ghost_owners is None:
             # Define ranges and ghost owners
             recv_buffer = numpy.ndarray(comm.size, dtype=numpy.int32)
@@ -62,9 +63,14 @@ class IndexMap(object):
             all_ranges = numpy.zeros(comm.size + 1, dtype=numpy.int64)
             all_ranges[1:] = numpy.cumsum(recv_buffer)
             self._ghost_owners = numpy.searchsorted(all_ranges, self._ghosts, side="right") - 1
-            self._local_range = all_ranges[comm.rank: comm.rank + 2]
+            self._local_range[0] = all_ranges[comm.rank]
+            self._local_range[1] = all_ranges[comm.rank + 1]
             # The memory of all_ranges is collected by the garbage collector,
             # there is no need to free memory, see https://docs.python.org/3/library/gc.html
+        else:
+            send_buffer = numpy.array([owned_size], dtype=numpy.int32)
+            comm.Exscan(send_buffer, self._local_range[:-1])
+            self._local_range[1] = self._local_range[0] + owned_size
 
         if comm.rank in self._ghost_owners:
             raise ValueError("Ghost in local range of process " + str(comm.rank))
