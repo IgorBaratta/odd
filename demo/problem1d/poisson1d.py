@@ -1,28 +1,42 @@
-# Copyright (C) 2020 Igor A. Baratta
-#
-# This file is part of odd
-#
-# SPDX-License-Identifier:    LGPL-3.0-or-later
-
-
 import numpy
-import matplotlib.pyplot as plt
-from cycler import cycler
+import pytest
+from mpi4py import MPI
+from odd import IndexMap, NeighborVectorScatter, PETScVectorScatter
+from odd.utils import partition1d
 
-import matplotlib.style
-import matplotlib as mpl
-mpl.style.use('seaborn')
-mpl.rcParams['axes.prop_cycle'] = cycler(color='bgrc')
+global_size = 200
+overlap = 10
 
-U = numpy.load('sol.npy', allow_pickle=True)
-X = numpy.load('points.npy', allow_pickle=True)
+# Problem data
+comm = MPI.COMM_WORLD
+l2gmap = partition1d(comm, global_size, overlap)
+scatter = NeighborVectorScatter(l2gmap)
+petsc_scatter = PETScVectorScatter(l2gmap)
 
-for j in range(0, 100, 5):
-    for i in range(4):
-        plt.plot(X[i], U[j][i])
+bi = numpy.ones(l2gmap.local_size, dtype=numpy.complex128) * comm.rank
 
+# Update Ghosts with MPI-3 Neighborhood Communication
+array = bi.copy()
+array[l2gmap.owned_size:] = 0
+scatter.reverse(array)
 
-plt.ylabel('some numbers')
-plt.grid(True)
-plt.tight_layout()
-plt.show()
+# Update Ghosts with PETSc Vector Scatter
+index_map = l2gmap
+petsc_array = bi.copy()
+petsc_array[index_map.owned_size:] = 0
+petsc_scatter.reverse(petsc_array)
+
+assert (numpy.all(petsc_array == array))
+
+# Update Ghosts with MPI-3 Neighborhood Communication
+random_ghosts = numpy.random.rand(l2gmap.ghosts.size)
+array = bi.copy()
+array[l2gmap.owned_size:] = random_ghosts.copy()
+scatter.forward(array)
+
+# Update Ghosts with PETSc Vector Scatter
+petsc_array = bi.copy()
+petsc_array[l2gmap.owned_size:] = random_ghosts.copy()
+petsc_scatter.forward(petsc_array)
+
+assert (numpy.all(petsc_array == array))

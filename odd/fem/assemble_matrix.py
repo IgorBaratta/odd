@@ -8,16 +8,20 @@ import cffi
 import dolfinx
 import numpy
 import numba
-import numba.cffi_support
 from scipy.sparse import coo_matrix
 
 from .mesh import mesh_wrapper, MeshWrapper
 from .dofmap import dofmap_wrapper, DofMapWrapper
 
+try:
+    import numba.core.typing.cffi_utils as cffi_support
+except ModuleNotFoundError:  # numba 0.48 or earlier
+    from numba import cffi_support
+
 # CFFI - register complex types
 ffi = cffi.FFI()
-numba.cffi_support.register_type(ffi.typeof("double _Complex"), numba.types.complex128)
-numba.cffi_support.register_type(ffi.typeof("float _Complex"), numba.types.complex64)
+cffi_support.register_type(ffi.typeof("double _Complex"), numba.types.complex128)
+cffi_support.register_type(ffi.typeof("float _Complex"), numba.types.complex64)
 
 
 def assemble_matrix(a, active_entities=None):
