@@ -10,7 +10,7 @@
 A simple distributed (MPI) domain decomposition library in python.
 
 ## Installation
-`odd requires `numpy`, `scipy` and `mpi4py`.
+`odd` requires `numpy`, `scipy` and `mpi4py`.
 
 On OS X & Linux:
 
