@@ -19,7 +19,14 @@ git clone git@github.com:IgorBaratta/odd.git
 python3 -m pip odd/
 ```
 
-For a full experience we recommend to use o
+or:
+
+```
+ pip3 install git+https://github.com/IgorBaratta/odd.git --upgrade
+``` 
+
+For a full experience we recommend to use `odd` in combination with the FEniCS libraries.
+Please refer to the Demos for more examples and usage.
 
 ## Usage example
 
