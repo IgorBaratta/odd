@@ -1,42 +1,56 @@
+import dolfinx
 import numpy
-import pytest
+import ufl
 from mpi4py import MPI
-from odd import IndexMap, NeighborVectorScatter, PETScVectorScatter
-from odd.utils import partition1d
+from petsc4py import PETSc
+import time
 
-global_size = 200
-overlap = 10
+import odd
 
-# Problem data
+"""Solve -u’’ = sin(x), u(0)=0, u(L)=0."""
+
 comm = MPI.COMM_WORLD
-l2gmap = partition1d(comm, global_size, overlap)
-scatter = NeighborVectorScatter(l2gmap)
-petsc_scatter = PETScVectorScatter(l2gmap)
+lim = [0.0, numpy.pi]
+ghost_mode = dolfinx.cpp.mesh.GhostMode.shared_facet
+mesh = dolfinx.IntervalMesh(comm, 10000, lim, ghost_mode)
+mesh.topology.create_connectivity_all()
+tdim = mesh.topology.dim
 
-bi = numpy.ones(l2gmap.local_size, dtype=numpy.complex128) * comm.rank
+V = dolfinx.FunctionSpace(mesh, ("P", 1))
+u = ufl.TrialFunction(V)
+v = ufl.TestFunction(V)
+a = ufl.inner(ufl.grad(u), ufl.grad(v)) * ufl.dx
+[x] = ufl.SpatialCoordinate(mesh)
+f = ufl.sin(x)
+L = ufl.inner(f, v) * ufl.dx
 
-# Update Ghosts with MPI-3 Neighborhood Communication
-array = bi.copy()
-array[l2gmap.owned_size:] = 0
-scatter.reverse(array)
 
-# Update Ghosts with PETSc Vector Scatter
-index_map = l2gmap
-petsc_array = bi.copy()
-petsc_array[index_map.owned_size:] = 0
-petsc_scatter.reverse(petsc_array)
+# Using dolfinx/PETSc
+A = dolfinx.fem.assemble_matrix(a)
+A.assemble()
+u_e = dolfinx.Function(V)
+u_e.interpolate(lambda y: numpy.sin(y[0]))
+tic = time.perf_counter()
+v = A*u_e.vector
+toc = time.perf_counter()
+# print(f"PETSc in {toc - tic:0.4f} seconds")
+# v.ghostUpdate(addv=PETSc.InsertMode.INSERT, mode=PETSc.ScatterMode.FORWARD)
 
-assert (numpy.all(petsc_array == array))
+# Using odd
+size_local = V.dofmap.index_map.size_local
+ghosts = V.dofmap.index_map.ghosts
+imap = odd.IndexMap(comm, size_local, ghosts)
+Ai = odd.fem.assemble_matrix(a)
+Op = odd.la.LinearOperator(Ai, imap)
 
-# Update Ghosts with MPI-3 Neighborhood Communication
-random_ghosts = numpy.random.rand(l2gmap.ghosts.size)
-array = bi.copy()
-array[l2gmap.owned_size:] = random_ghosts.copy()
-scatter.forward(array)
+with u_e.vector.localForm() as local_vec:
+    vec = odd.la.Vector(imap, local_vec._array, PETSc.ScalarType)
 
-# Update Ghosts with PETSc Vector Scatter
-petsc_array = bi.copy()
-petsc_array[l2gmap.owned_size:] = random_ghosts.copy()
-petsc_scatter.forward(petsc_array)
-
-assert (numpy.all(petsc_array == array))
+c = Op(vec)
+tic = time.perf_counter()
+c[:] = numpy.sin(vec._array)
+toc = time.perf_counter()
+print(f"Odd in {toc - tic:0.4f} seconds")
+# print(numpy.sum((c.local_array - v.array)))
+#
+print(type(c))

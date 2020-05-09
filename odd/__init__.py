@@ -9,7 +9,7 @@
 
 # Import public interface
 from .index_map import IndexMap
-from odd.linear_operator import LinearOperator
+from odd.la import LinearOperator, Vector
 from odd.preconditioner.schwarz import AdditiveSchwarz, SMType
 from odd.vector_scatter import VectorScatter, NeighborVectorScatter, PETScVectorScatter
 
@@ -20,8 +20,6 @@ __all__ = [
     "AdditiveSchwarz",
     "SMType",
     "VectorScatter",
-    "LinearOperator",
     "NeighborVectorScatter",
     "PETScVectorScatter",
-    "fem",
 ]

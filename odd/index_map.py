@@ -44,9 +44,9 @@ class IndexMap(object):
         owned_size:
             The number of owned degrees of freedom (Core + Shared)
         ghosts:
-            The global indices of ghost entries, or empty array if not needed.
+            The global indices of ghost entries, or empty array if not known.
         """
-
+        self.comm = comm
         self._ghosts = numpy.array(ghosts, dtype=numpy.int64)
         self._owned_size = owned_size
         self._ghost_owners = ghost_owners
@@ -68,12 +68,13 @@ class IndexMap(object):
             # The memory of all_ranges is collected by the garbage collector,
             # there is no need to free memory, see https://docs.python.org/3/library/gc.html
         else:
-            send_buffer = numpy.array([owned_size], dtype=numpy.int32)
+            send_buffer = numpy.array([owned_size], dtype=numpy.int64)
             comm.Exscan(send_buffer, self._local_range[:-1])
             self._local_range[1] = self._local_range[0] + owned_size
+            self._ghost_owners = ghost_owners
 
         if comm.rank in self._ghost_owners:
-            raise ValueError("Ghost in local range of process " + str(comm.rank))
+            raise IndexError("Ghost in local range of process " + str(comm.rank))
 
         # The ghosts in the current process are owned by reverse_neighbors
         # Reverse counts is the number of ghost indices grouped by ghost owner.
@@ -168,6 +169,10 @@ class IndexMap(object):
         self.reverse_comm.Neighbor_alltoallv([send_data, (self.reverse_counts, None)],
                                              [recv_data, (self.forward_counts, None)])
         return recv_data - self.shift
+
+    @cached_property
+    def global_size(self) -> int:
+        return self.comm.allreduce(self.owned_size)
 
     @property
     def shared_indices(self) -> ndarray:
