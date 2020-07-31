@@ -4,5 +4,7 @@
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
+# flake8: noqa
+
 from ._reduction import parallel_reduce
 

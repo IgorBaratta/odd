@@ -14,7 +14,8 @@ from numbers import Integral
 from ._utils import partition1d
 from ._index_map import IndexMap
 from ._operations import mpi_reduction, dot1d
-from ..communication._reduction import parallel_reduce
+
+# from ..communication._reduction import parallel_reduce
 
 
 HANDLED_FUNCTIONS = {}
@@ -37,7 +38,7 @@ class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
         elif len(shape) > 2:
             raise NotImplementedError
 
-        if not all(isinstance(l, Integral) and int(l) >= 0 for l in shape):
+        if not all(isinstance(sz, Integral) and int(sz) >= 0 for sz in shape):
             raise ValueError(
                 "shape must be an non-negative integer or a tuple "
                 "of non-negative integers."
@@ -85,7 +86,8 @@ class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
     def __repr__(self):
         return (
             f"odd.{self.__class__.__name__}"
-            + f"(shape={self.local_shape}, dtype={self.dtype.name}, rank={self.mpi_comm.rank})"
+            + f"(shape={self.local_shape}, dtype={self.dtype.name}"
+            + f"rank={self.mpi_comm.rank})"
         )
 
     def __setitem__(self, key, value):
@@ -96,8 +98,8 @@ class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
 
     def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
         """
-        Apply unary or binary ufunc to the distributed array, 
-        currently only supports ufuncs with 1 or 2 inputs and 
+        Apply unary or binary ufunc to the distributed array,
+        currently only supports ufuncs with 1 or 2 inputs and
         only 1 output.
 
         NumPy will always use it for implementing arithmetic.
@@ -196,7 +198,7 @@ def size(array):
 
 @implements(numpy.dot)
 def dot(a, b, **kwargs):
-    return 0
+    return dot1d(a, b)
 
 
 if __name__ == "__main__":

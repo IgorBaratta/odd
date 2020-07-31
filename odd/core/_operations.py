@@ -28,4 +28,3 @@ def dot1d(a, b):
     assert a.mpi_comm.size == b.mpi_comm.size
     comm.Allreduce(sendbuf, recvbuf, MPI.SUM)
     return recvbuf[0]
-
