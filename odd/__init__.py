@@ -8,20 +8,6 @@
 # flake8: noqa
 
 # Import public interface
-from .index_map import IndexMap
-from odd.linear_operator import LinearOperator
-from odd.preconditioner.schwarz import AdditiveSchwarz, SMType
-from odd.vector_scatter import VectorScatter, NeighborVectorScatter, PETScVectorScatter
+from .core import DistArray, empty, full, ones, zeros
+from .communication import parallel_reduce
 
-from odd import fem
-
-__all__ = [
-    "IndexMap",
-    "AdditiveSchwarz",
-    "SMType",
-    "VectorScatter",
-    "LinearOperator",
-    "NeighborVectorScatter",
-    "PETScVectorScatter",
-    "fem",
-]

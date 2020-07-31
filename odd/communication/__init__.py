@@ -4,5 +4,5 @@
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
+from ._reduction import parallel_reduce
 
-# Helper functions to allow using JAX with odd

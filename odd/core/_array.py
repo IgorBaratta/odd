@@ -1,0 +1,206 @@
+# Copyright (C) 2020 Igor A. Baratta
+#
+# This file is part of odd
+#
+# SPDX-License-Identifier:    LGPL-3.0-or-later
+
+import numpy
+from mpi4py import MPI
+
+from collections.abc import Iterable
+from functools import reduce
+from numbers import Integral
+
+from ._utils import partition1d
+from ._index_map import IndexMap
+from ._operations import mpi_reduction, dot1d
+from ..communication._reduction import parallel_reduce
+
+
+HANDLED_FUNCTIONS = {}
+
+
+class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
+    def __init__(
+        self, shape, dtype=float, buffer=None, index_map=None, comm=MPI.COMM_WORLD
+    ):
+        """
+        Distributed numpy ndarray.
+
+        shape (tuple of ints) – Length of axes.
+
+        """
+
+        # Currently only supports one and two dimensions
+        if not isinstance(shape, Iterable):
+            shape = (shape,)
+        elif len(shape) > 2:
+            raise NotImplementedError
+
+        if not all(isinstance(l, Integral) and int(l) >= 0 for l in shape):
+            raise ValueError(
+                "shape must be an non-negative integer or a tuple "
+                "of non-negative integers."
+            )
+
+        self.dtype = numpy.dtype(dtype)
+        self.mpi_comm = comm
+        self.shape = shape
+
+        self._map = None
+        if isinstance(index_map, IndexMap):
+            self._map = index_map
+        elif index_map is None:
+            self._map = partition1d(comm, shape[0], 0)
+
+        # TODO: Check if partition matches shape
+
+        local_shape = list(shape)
+        local_shape[0] = self._map.local_size
+        self.local_shape = tuple(local_shape)
+
+        self._array = None
+        if buffer is not None:
+            if isinstance(buffer, numpy.ndarray):
+                self._array = buffer.reshape(self.local_shape)
+            else:
+                raise TypeError
+        else:
+            self._array = numpy.ndarray(self.local_shape, dtype=dtype)
+
+    def get_local_view(self):
+        return self._array
+
+    def get_local_copy(self):
+        return self._array.copy()
+
+    def fill(self, value):
+        """
+        Fill the distributed array with a scalar value.
+
+        @note: the value may be different from each process
+        """
+        self._array[:] = value
+
+    def __repr__(self):
+        return (
+            f"odd.{self.__class__.__name__}"
+            + f"(shape={self.local_shape}, dtype={self.dtype.name}, rank={self.mpi_comm.rank})"
+        )
+
+    def __setitem__(self, key, value):
+        self._array[key] = value
+
+    def __array__(self):
+        return self._array
+
+    def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
+        """
+        Apply unary or binary ufunc to the distributed array, 
+        currently only supports ufuncs with 1 or 2 inputs and 
+        only 1 output.
+
+        NumPy will always use it for implementing arithmetic.
+
+        See:
+            https://numpy.org/doc/stable/reference/ufuncs.html
+        """
+
+        if method == "__call__":
+            if ufunc.nin == 1 and ufunc.nout == 1:
+                return self.__class__(
+                    shape=self.shape,
+                    dtype=self.dtype,
+                    buffer=ufunc(self._array, **kwargs),
+                    comm=self.mpi_comm,
+                )
+
+            elif ufunc.nin == 2 and ufunc.nout == 1:
+                params = []
+                for input in inputs:
+                    if isinstance(input, self.__class__):
+                        params.append(input._array)
+                    else:
+                        params.append(input)
+                return self.__class__(
+                    shape=self.shape,
+                    dtype=self.dtype,
+                    index_map=self._map,
+                    buffer=ufunc(*params, **kwargs),
+                    comm=self.mpi_comm,
+                )
+            else:
+                return NotImplemented
+        else:
+            return NotImplemented
+
+    @property
+    def size(self):
+        # global size of the distributed array
+        return reduce((lambda x, y: x * y), self.shape)
+
+    def __array_function__(self, func, types, args, kwargs):
+
+        if func not in HANDLED_FUNCTIONS:
+            return NotImplemented
+
+        if not all(issubclass(t, self.__class__) for t in types):
+            return NotImplemented
+
+        return HANDLED_FUNCTIONS[func](*args, **kwargs)
+
+    @staticmethod
+    def get_handled_functions():
+        return [func.__name__ for func in HANDLED_FUNCTIONS]
+
+
+def implements(numpy_func):
+    """Register an __array_function__ implementation for odd.ndarray objects."""
+
+    def decorator(func):
+        HANDLED_FUNCTIONS[numpy_func] = func
+        return func
+
+    return decorator
+
+
+@implements(numpy.sum)
+def sum(array, axis=None, dtype=None):
+    return mpi_reduction(array, numpy.sum)
+
+
+@implements(numpy.min)
+def min(array, axis=None, dtype=None):
+    return mpi_reduction(array, numpy.min)
+
+
+@implements(numpy.max)
+def max(array, axis=None, dtype=None):
+    return mpi_reduction(array, numpy.max)
+
+
+@implements(numpy.mean)
+def mean(array, ord=None, axis=None, dtype=None):
+    return mpi_reduction(array, numpy.sum) / array.size
+
+
+@implements(numpy.linalg.norm)
+def norm(array, ord=None, axis=None):
+    return mpi_reduction(array, numpy.linalg.norm, ord=ord)
+
+
+@implements(numpy.size)
+def size(array):
+    return array.size
+
+
+@implements(numpy.dot)
+def dot(a, b, **kwargs):
+    return 0
+
+
+if __name__ == "__main__":
+    x = DistArray((100000, 10000))
+    x.fill(2)
+    y = numpy.add(x, x)
+    print(y.size)
