@@ -6,7 +6,8 @@
 
 import numpy
 from mpi4py import MPI
-from .index_map import IndexMap
+
+from ._index_map import IndexMap
 
 
 def partition1d(comm, global_size, overlap):
@@ -16,7 +17,7 @@ def partition1d(comm, global_size, overlap):
         ghosts = numpy.append(ghosts, numpy.arange(lrange[0] - overlap, lrange[0]))
     if comm.rank < comm.size - 1:
         ghosts = numpy.append(ghosts, numpy.arange(lrange[1], lrange[1] + overlap))
-    osize = owned_size(comm, global_size)
+    osize = lrange[1] - lrange[0]
     return IndexMap(comm, osize, ghosts)
 
 
@@ -28,9 +29,3 @@ def local_range(comm: MPI.Intracomm, global_size: int):
     else:
         lrange = [comm.rank * n + r, comm.rank * n + r + n]
     return lrange
-
-
-def owned_size(comm: MPI.Intracomm, global_size: int):
-    n = global_size // comm.size
-    r = global_size % comm.size
-    return n + 1 if comm.rank < r else n + r - 1

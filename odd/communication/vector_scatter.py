@@ -8,7 +8,7 @@ import abc
 from enum import Enum
 
 from numpy.core.multiarray import ndarray
-from odd.index_map import IndexMap
+from odd.core._index_map import IndexMap
 
 
 class InsertMode(Enum):

@@ -4,5 +4,7 @@
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
+# flake8: noqa
 
-# Helper functions to allow using JAX with odd
+from ._reduction import parallel_reduce
+

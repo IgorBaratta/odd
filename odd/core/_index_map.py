@@ -14,7 +14,7 @@ from numpy.core.multiarray import ndarray
 
 class IndexMap(object):
     """
-    This class manages the map between the local indices (sub-domain level) and the global parallel ordering,
+    This class manages the map between the local indices (process level) and the global parallel ordering,
     accounting for ghost padding.
 
     The indices are decomposed into three types:

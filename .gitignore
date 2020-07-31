@@ -9,6 +9,7 @@ _petsc*
 
 # Distribution / packaging
 .idea
+.vscode
 .Python
 build/
 develop-eggs/
