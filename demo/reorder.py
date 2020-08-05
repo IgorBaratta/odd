@@ -1,34 +1,15 @@
-from mpi4py import MPI
-import odd.utils
-import odd.sparse
-from odd.communication import IndexMap
+import odd
 import numpy
+import time
 
-from scipy.sparse import csr_matrix, eye
-from scipy.sparse.linalg.isolve import cg
+b = odd.ones(10000000)
 
-comm = MPI.COMM_WORLD
-if comm.rank == 0:
-    A = odd.sparse.get_csr_matrix("FEMLAB/poisson2D", False)
-    b0 = numpy.ones(A.shape[0])
-    x0, info = cg(A, b0)
-else:
-    A = None
+t = time.time()
+c = numpy.sin(b)
+t = time.time() - t
 
+if b._map.forward_comm.rank == 0:
+    print(t)
+# d = b + c
 
-# Distribute serial csr matrix by rows, each MPI receive a set of rows
-Mat = odd.sparse.distribute_csr_matrix(A, comm)
-b = Mat.get_vector()
-b.fill(1)
-
-x = Mat @ b
-
-x = Mat.get_vector()
-x.fill(0)
-
-from odd.sparse.iterative import cg as cg2
-
-# x = cg(A, b0, x0)
-x, info = cg2(Mat, b, x)
-
-print(numpy.max(x.array - x0))
+# nc = numpy.linalg.norm(c)

@@ -21,7 +21,7 @@ def zeros(shape, map=None, dtype=float, order="C"):
 
 def ones(shape, map=None, dtype=float, order="C"):
     array = DistArray(shape, dtype, index_map=map, comm=MPI.COMM_WORLD)
-    array.fill(0)
+    array.fill(1)
     return array
 
 
