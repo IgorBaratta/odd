@@ -6,7 +6,7 @@
 
 import numpy
 from mpi4py import MPI
-from functools import cached_property, reduce
+from functools import reduce
 from typing import List, Union
 
 from numpy.core.multiarray import ndarray
@@ -169,7 +169,7 @@ class IndexMap(object):
     def ordered_indices(self):
         return numpy.sort(self.indices)
 
-    @cached_property
+    @property
     def reverse_indices(self) -> ndarray:
         # Order ghosts by owner rank
         owners_order = self._ghost_owners.argsort()
