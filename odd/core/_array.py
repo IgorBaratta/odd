@@ -11,8 +11,8 @@ from collections.abc import Iterable
 from functools import reduce
 from numbers import Integral
 
-from ._utils import partition1d
-from ._index_map import IndexMap
+from odd.utils import partition1d
+from odd.communication import IndexMap
 from ._operations import mpi_reduction, dot1d
 
 # from ..communication._reduction import parallel_reduce
@@ -54,8 +54,6 @@ class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
         elif index_map is None:
             self._map = partition1d(comm, shape[0], 0)
 
-        # TODO: Check if partition matches shape
-
         local_shape = list(shape)
         local_shape[0] = self._map.local_size
         self.local_shape = tuple(local_shape)
@@ -68,6 +66,23 @@ class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
                 raise TypeError
         else:
             self._array = numpy.ndarray(self.local_shape, dtype=dtype)
+
+    @property
+    def array(self):
+        return self._array[: self._map.owned_size]
+
+    def duplicate(self):
+        return self.__class__(
+            shape=self.shape[0], dtype=self.dtype, index_map=self._map
+        )
+
+    def copy(self):
+        return self.__class__(
+            shape=self.shape[0],
+            dtype=self.dtype,
+            buffer=self._array,
+            index_map=self._map,
+        )
 
     def get_local_view(self):
         return self._array
@@ -83,18 +98,21 @@ class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
         """
         self._array[:] = value
 
+    def __len__(self):
+        return reduce((lambda x, y: x * y), self.shape)
+
     def __repr__(self):
         return (
             f"odd.{self.__class__.__name__}"
-            + f"(shape={self.local_shape}, dtype={self.dtype.name}"
-            + f"rank={self.mpi_comm.rank})"
+            + f"(shape={self.local_shape}, dtype={self.dtype.name},"
+            + f" rank={self.mpi_comm.rank})"
         )
 
     def __setitem__(self, key, value):
         self._array[key] = value
 
-    def __array__(self):
-        return self._array
+    # def __array__(self):
+    #     return self._array[0 : self._map.owned_size]
 
     def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
         """
@@ -199,10 +217,3 @@ def size(array):
 @implements(numpy.dot)
 def dot(a, b, **kwargs):
     return dot1d(a, b)
-
-
-if __name__ == "__main__":
-    x = DistArray((100000, 10000))
-    x.fill(2)
-    y = numpy.add(x, x)
-    print(y.size)

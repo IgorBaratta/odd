@@ -4,11 +4,8 @@
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
-"""Main module for odd"""
 # flake8: noqa
 
-import odd.utils
-import odd.sparse
-import odd.communication
+from ._sparse_matrix import DistMatrix
+from ._io import get_csr_matrix, distribute_csr_matrix
 
-from odd.core import *

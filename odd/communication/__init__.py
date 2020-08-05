@@ -7,4 +7,5 @@
 # flake8: noqa
 
 from ._reduction import parallel_reduce
+from ._index_map import IndexMap
 

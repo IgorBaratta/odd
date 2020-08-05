@@ -29,7 +29,7 @@ setup(
     license="LGPL v3 or later",
     url="https://github.com/IgorBaratta/odd",
     zip_safe=False,
-    packages=["odd"],
+    packages=["odd", "odd.core", "odd.sparse", "odd.utils"],
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
         "Intended Audience :: Developers",

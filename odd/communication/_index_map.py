@@ -10,6 +10,7 @@ from functools import cached_property, reduce
 from typing import List, Union
 
 from numpy.core.multiarray import ndarray
+from ._utils import global_to_local_numba
 
 
 class IndexMap(object):
@@ -31,11 +32,13 @@ class IndexMap(object):
           Local indices are 32 bit integers and global indices are 64 bit integers.
     """
 
-    def __init__(self,
-                 comm: MPI.Intracomm,
-                 owned_size: int,
-                 ghosts: Union[List, ndarray],
-                 ghost_owners: Union[List, ndarray] = None):
+    def __init__(
+        self,
+        comm: MPI.Intracomm,
+        owned_size: int,
+        ghosts: Union[List, ndarray],
+        ghost_owners: Union[List, ndarray] = None,
+    ):
         """
         Parameters
         ----------
@@ -62,7 +65,9 @@ class IndexMap(object):
 
             all_ranges = numpy.zeros(comm.size + 1, dtype=numpy.int64)
             all_ranges[1:] = numpy.cumsum(recv_buffer)
-            self._ghost_owners = numpy.searchsorted(all_ranges, self._ghosts, side="right") - 1
+            self._ghost_owners = (
+                numpy.searchsorted(all_ranges, self._ghosts, side="right") - 1
+            )
             self._local_range[0] = all_ranges[comm.rank]
             self._local_range[1] = all_ranges[comm.rank + 1]
             # The memory of all_ranges is collected by the garbage collector,
@@ -77,7 +82,9 @@ class IndexMap(object):
 
         # The ghosts in the current process are owned by reverse_neighbors
         # Reverse counts is the number of ghost indices grouped by ghost owner.
-        self.reverse_neighbors, self.reverse_counts = numpy.unique(self._ghost_owners, return_counts=True)
+        self.reverse_neighbors, self.reverse_counts = numpy.unique(
+            self._ghost_owners, return_counts=True
+        )
         send_buffer = numpy.zeros(comm.size, dtype=numpy.int32)
         send_buffer[self.reverse_neighbors] = self.reverse_counts
 
@@ -92,10 +99,12 @@ class IndexMap(object):
         # Create a communicator for both forward and reverse modes.
         # sources -	ranks of processes for which the calling process is a destination
         # destinations - ranks of processes for which the calling process is a destination
-        self.reverse_comm = comm.Create_dist_graph_adjacent(sources=self.forward_neighbors,
-                                                            destinations=self.reverse_neighbors)
-        self.forward_comm = comm.Create_dist_graph_adjacent(sources=self.reverse_neighbors,
-                                                            destinations=self.forward_neighbors)
+        self.reverse_comm = comm.Create_dist_graph_adjacent(
+            sources=self.forward_neighbors, destinations=self.reverse_neighbors
+        )
+        self.forward_comm = comm.Create_dist_graph_adjacent(
+            sources=self.reverse_neighbors, destinations=self.forward_neighbors
+        )
 
     @property
     def neighbors(self) -> ndarray:
@@ -103,6 +112,10 @@ class IndexMap(object):
         Return list of neighbor processes
         """
         return reduce(numpy.union1d, (self.reverse_neighbors, self.forward_neighbors))
+
+    @property
+    def global_size(self) -> numpy.int64:
+        return self.forward_comm.allreduce(self.owned_size)
 
     @property
     def ghost_owners(self) -> ndarray:
@@ -165,8 +178,10 @@ class IndexMap(object):
 
         # Send reverse_counts ghost indices to reverse neighbors and receive forward_counts
         # owned indices from forward neighbors
-        self.reverse_comm.Neighbor_alltoallv([send_data, (self.reverse_counts, None)],
-                                             [recv_data, (self.forward_counts, None)])
+        self.reverse_comm.Neighbor_alltoallv(
+            [send_data, (self.reverse_counts, None)],
+            [recv_data, (self.forward_counts, None)],
+        )
         return recv_data - self.shift
 
     @property
@@ -185,3 +200,6 @@ class IndexMap(object):
 
     def forward_count(self, block_size=1):
         return self.forward_counts * block_size
+
+    def global_to_local(self, indices):
+        return global_to_local_numba(indices, self.local_range, self.ghosts)

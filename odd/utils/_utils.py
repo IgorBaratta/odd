@@ -7,7 +7,7 @@
 import numpy
 from mpi4py import MPI
 
-from ._index_map import IndexMap
+from odd.communication._index_map import IndexMap
 
 
 def partition1d(comm, global_size, overlap):
