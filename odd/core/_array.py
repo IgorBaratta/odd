@@ -15,7 +15,7 @@ from odd.utils import partition1d
 from odd.communication import IndexMap
 from ._operations import mpi_reduction, dot1d
 
-# from ..communication._reduction import parallel_reduce
+from odd.communication.mpi3_scatter import NeighborVectorScatter
 
 
 HANDLED_FUNCTIONS = {}
@@ -67,13 +67,31 @@ class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
         else:
             self._array = numpy.ndarray(self.local_shape, dtype=dtype)
 
+        assert self._array.shape[0] == self._map.local_size
+        assert self.array.shape[0] == self._map.owned_size
+
+        self.scatter = NeighborVectorScatter(self._map)
+
     @property
     def array(self):
         return self._array[: self._map.owned_size]
 
+    def update(self):
+        """
+        Update ghost data
+        """
+        self.scatter.reverse(self._array)
+
     def duplicate(self):
         return self.__class__(
             shape=self.shape[0], dtype=self.dtype, index_map=self._map
+        )
+
+    def astype(self, dtype):
+        return self.__class__(
+            shape=self.shape[0], dtype=dtype,
+            buffer=self._array.astype(dtype),
+            index_map=self._map
         )
 
     def copy(self):
@@ -111,8 +129,8 @@ class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
     def __setitem__(self, key, value):
         self._array[key] = value
 
-    # def __array__(self):
-    #     return self._array[0 : self._map.owned_size]
+    def __array__(self):
+        return self._array[0 : self._map.owned_size]
 
     def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
         """

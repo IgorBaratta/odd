@@ -1,9 +1,4 @@
-from numpy import asanyarray, asarray, array, matrix
-from scipy.sparse.sputils import asmatrix
-
-import numpy
-
-from odd import zeros, DistArray
+from odd import DistArray
 
 from scipy.sparse.linalg.interface import (
     aslinearoperator,
@@ -89,8 +84,6 @@ def make_system(A, M, x0, b):
         b = b.astype("d")  # upcast non-FP types to double
 
     def postprocess(x):
-        if isinstance(b, matrix):
-            x = asmatrix(x)
         return x
 
     if hasattr(A, "dtype"):
@@ -102,12 +95,7 @@ def make_system(A, M, x0, b):
     b._array = b._array.ravel()
 
     if x0 is None:
-        x = zeros(N, dtype=xtype)
-    elif isinstance(x0, numpy.ndarray):
-        x = array(x0, dtype=xtype)
-        if not (x.shape == (N, 1) or x.shape == (N,)):
-            raise ValueError("A and x have incompatible dimensions")
-        x = x.ravel()
+        x = A.get_vector()
     elif isinstance(x0, DistArray):
         x = x0.copy()
         return x

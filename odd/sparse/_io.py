@@ -17,7 +17,7 @@ def get_csr_matrix(Name: str, verbose: bool = True, comm=MPI.COMM_WORLD) -> csr_
     Get matrix from the SuiteSparse Matrix Collection website and
     convert to the a distributed sparse matrix in the odd.sparse_matrix format.
 
-    The method only open the files or read from input streams on MPI Process 0, 
+    The method only open the files or read from input streams on MPI Process 0,
     and redistribute data to the other MPI processes. It can be quite expensive.
 
     """
@@ -63,7 +63,7 @@ def get_csr_matrix(Name: str, verbose: bool = True, comm=MPI.COMM_WORLD) -> csr_
     return A
 
 
-def distribute_csr_matrix(A, comm=MPI.COMM_WORLD, root=0):
+def distribute_csr_matrix(A, comm=MPI.COMM_WORLD, root=0) -> DistMatrix:
     myrank = comm.rank
     shape = A.shape if myrank == root else None
 
@@ -165,4 +165,3 @@ def distribute_indices(rowmap, A, l_indptr, root=0) -> numpy.ndarray:
     comm.Scatterv([sendbuf, count, displ, mpi_type], recv_buffer, root)
 
     return recv_buffer
-

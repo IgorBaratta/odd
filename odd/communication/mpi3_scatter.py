@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
-from ..index_map import IndexMap
+from ._index_map import IndexMap
 from .vector_scatter import VectorScatter, InsertMode
 import numpy
 
@@ -41,7 +41,6 @@ class NeighborVectorScatter(VectorScatter):
             reduced_data = numpy.bincount(indices, recv_data.real) + 1j * numpy.bincount(indices, recv_data.imag)
         else:
             reduced_data = numpy.bincount(indices, recv_data)
-
         array[self.index_map.shared_indices] += reduced_data
 
     def reverse(self, array: numpy.ndarray, insert_mode: InsertMode = InsertMode.INSERT):

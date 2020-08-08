@@ -25,7 +25,7 @@ def ones(shape, map=None, dtype=float, order="C"):
     return array
 
 
-def full(shape, fill_value, map=None, dtype=float, order="C"):
-    array = DistArray(shape, dtype, index_map=map, comm=MPI.COMM_WORLD)
+def full(shape, fill_value, map=[], dtype=float, order="C"):
+    array = DistArray(shape, dtype, index_map=[], comm=MPI.COMM_WORLD)
     array.fill(fill_value)
     return array
