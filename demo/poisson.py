@@ -1,5 +1,5 @@
 import odd
-from odd.sparse.iterative import cg
+from odd.sparse.linalg import cg
 from scipy.sparse.linalg import cg as spcg
 from mpi4py import MPI
 import numpy
