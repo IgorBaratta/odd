@@ -8,4 +8,5 @@
 
 from ._reduction import parallel_reduce
 from ._index_map import IndexMap
+from .mpi3_scatter import NeighborVectorScatter
 

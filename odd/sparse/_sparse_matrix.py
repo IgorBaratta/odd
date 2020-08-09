@@ -55,6 +55,8 @@ class DistMatrix(scipy.sparse.linalg.LinearOperator):
 
     def _matvec(self, other: DistArray):
         buffer = numpy.zeros_like(other._array)
+        if "c" in self.dtype.char:
+            buffer = buffer.astype(self.dtype)
         buffer[: self.row_map.local_size] = self.l_matrix @ other._array
         return DistArray(other.shape, buffer=buffer, index_map=other._map)
 

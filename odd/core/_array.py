@@ -76,6 +76,10 @@ class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
     def array(self):
         return self._array[: self._map.owned_size]
 
+    @property
+    def ghost_values(self):
+        return self._array[self._map.owned_size :]
+
     def update(self):
         """
         Update ghost data
@@ -89,9 +93,10 @@ class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
 
     def astype(self, dtype):
         return self.__class__(
-            shape=self.shape[0], dtype=dtype,
+            shape=self.shape[0],
+            dtype=dtype,
             buffer=self._array.astype(dtype),
-            index_map=self._map
+            index_map=self._map,
         )
 
     def copy(self):

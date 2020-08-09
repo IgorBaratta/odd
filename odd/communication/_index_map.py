@@ -106,6 +106,8 @@ class IndexMap(object):
             sources=self.reverse_neighbors, destinations=self.forward_neighbors
         )
 
+        self.comm = comm
+
     @property
     def neighbors(self) -> ndarray:
         """
@@ -115,7 +117,7 @@ class IndexMap(object):
 
     @property
     def global_size(self) -> numpy.int64:
-        return self.forward_comm.allreduce(self.owned_size)
+        return self.comm.allreduce(self.owned_size)
 
     @property
     def ghost_owners(self) -> ndarray:

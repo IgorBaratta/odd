@@ -10,5 +10,5 @@ def global_to_local_numba(array, local_range, ghosts):
             output[i] = array[i] - local_range[0]
         else:
             new_index = numpy.where(ghosts == array[i])[0][0]
-            output[i] = new_index
+            output[i] = new_index + local_range[1] - local_range[0]
     return output
