@@ -1,5 +1,4 @@
 import numpy
-import odd
 from .utils import make_system
 
 norm = numpy.linalg.norm

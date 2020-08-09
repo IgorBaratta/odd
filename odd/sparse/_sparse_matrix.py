@@ -2,10 +2,8 @@ import numpy
 import scipy.sparse
 import scipy.sparse.linalg
 
-from collections.abc import Iterable
 from mpi4py import MPI
 
-from odd.utils._utils import partition1d
 from odd.core import DistArray
 from odd.communication import IndexMap
 
@@ -24,7 +22,7 @@ class DistMatrix(scipy.sparse.linalg.LinearOperator):
     ):
         """
         Distributed Compressed Sparse Row matrix
-        
+
         This can be instantiated in several ways:
             DistMatrix((l_data, l_indices, l_indptr), [shape=(M, N)], rowmap)
                 is the standard CSR representation where the column indices for
@@ -90,7 +88,7 @@ class DistMatrix(scipy.sparse.linalg.LinearOperator):
 
         """
 
-        M, N = self.shape
+        _, N = self.shape
 
         if x.shape != (N,) and x.shape != (N, 1):
             raise ValueError("dimension mismatch")
@@ -98,4 +96,3 @@ class DistMatrix(scipy.sparse.linalg.LinearOperator):
         y = self._matvec(x)
 
         return y
-
