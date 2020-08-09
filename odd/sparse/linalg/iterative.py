@@ -50,6 +50,7 @@ def cg(
     iter = 0
 
     while True:
+        p.update()
         Ap = A @ p
 
         rz_old = rz

@@ -21,10 +21,10 @@ class DistMatrix(scipy.sparse.linalg.LinearOperator):
         comm=MPI.COMM_WORLD,
     ):
         """
-        Distributed Compressed Sparse Row matrix
+        Distributed Sparse Matrix.
 
         This can be instantiated in several ways:
-            DistMatrix((l_data, l_indices, l_indptr), [shape=(M, N)], rowmap)
+            DistMatrix(spmatrix, [shape=(M, N)], rowmap)
                 is the standard CSR representation where the column indices for
                 with local indices
             DistMatrix(D)
@@ -32,7 +32,7 @@ class DistMatrix(scipy.sparse.linalg.LinearOperator):
         """
         self.dtype = None
         if isinstance(local_matrix, scipy.sparse.spmatrix):
-            self.l_matrix = local_matrix.tocsr()
+            self.l_matrix = local_matrix
             self.dtype = local_matrix.dtype
         else:
             raise NotImplementedError
@@ -53,8 +53,6 @@ class DistMatrix(scipy.sparse.linalg.LinearOperator):
 
     def _matvec(self, other: DistArray):
         buffer = numpy.zeros_like(other._array)
-        if "c" in self.dtype.char:
-            buffer = buffer.astype(self.dtype)
         buffer[: self.row_map.local_size] = self.l_matrix @ other._array
         return DistArray(other.shape, buffer=buffer, index_map=other._map)
 
@@ -67,24 +65,19 @@ class DistMatrix(scipy.sparse.linalg.LinearOperator):
     def matvec(self, x):
         """Matrix-vector multiplication.
 
-        Performs the operation y=A*x where A is an MxN linear
-        operator and x is a column vector or 1-d array.
+        Performs the operation y=A*x where A is a distributed MxN linear
+        operator and x is a ditributed array.
 
         Parameters
         ----------
-        x : {matrix, ndarray}
-            An array with shape (N,) or (N,1).
+        x : {DistArray}
+            An distributed array with shape (N,) or (N,1).
 
         Returns
         -------
-        y : {matrix, ndarray}
-            A matrix or ndarray with shape (M,) or (M,1) depending
+        y : {DistArray}
+            An distributed array with shape (M,) or (M,1) depending
             on the type and shape of the x argument.
-
-        Notes
-        -----
-        This matvec wraps the user-specified matvec routine or overridden
-        _matvec method to ensure that y has the correct shape and type.
 
         """
 
