@@ -6,5 +6,4 @@
 
 # flake8: noqa
 
-from ._utils import partition1d
-
+from ._utils import partition1d, is_sorted

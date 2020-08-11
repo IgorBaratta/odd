@@ -174,8 +174,10 @@ class IndexMap(object):
     @property
     def reverse_indices(self) -> ndarray:
         # Order ghosts by owner rank
-        owners_order = self._ghost_owners.argsort()
-        send_data = self._ghosts[owners_order]
+        # owners_order = self._ghost_owners.argsort()
+        # send_data = self._ghosts[owners_order]
+        # TODO: Check if ghosts need to be sorted ...
+        send_data = self._ghosts.copy()
         recv_data = numpy.zeros(numpy.sum(self.forward_counts), dtype=numpy.int64)
 
         # Send reverse_counts ghost indices to reverse neighbors and receive forward_counts
@@ -205,3 +207,6 @@ class IndexMap(object):
 
     def global_to_local(self, indices):
         return global_to_local_numba(indices, self.local_range, self.ghosts)
+
+    def local_to_global(self, indices):
+        return self.indices[indices]

@@ -6,6 +6,7 @@
 
 import numpy
 from mpi4py import MPI
+import numba
 
 from odd.communication._index_map import IndexMap
 
@@ -29,3 +30,11 @@ def local_range(comm: MPI.Intracomm, global_size: int):
     else:
         lrange = [comm.rank * n + r, comm.rank * n + r + n]
     return lrange
+
+
+@numba.jit
+def is_sorted(a):
+    for i in range(a.size - 1):
+        if a[i + 1] < a[i]:
+            return False
+    return True

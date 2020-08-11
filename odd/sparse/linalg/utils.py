@@ -83,9 +83,6 @@ def make_system(A, M, x0, b):
     if b.dtype.char not in "fdFD":
         b = b.astype("d")  # upcast non-FP types to double
 
-    def postprocess(x):
-        return x
-
     if hasattr(A, "dtype"):
         xtype = A.dtype.char
     else:
@@ -96,6 +93,7 @@ def make_system(A, M, x0, b):
 
     if x0 is None:
         x = A.get_vector()
+        x.fill(0)
     elif isinstance(x0, DistArray):
         x = x0.copy()
         return x
@@ -121,4 +119,4 @@ def make_system(A, M, x0, b):
         if A.shape != M.shape:
             raise ValueError("matrix and preconditioner have different shapes")
 
-    return A, M, x, b, postprocess
+    return A, M, x, b

@@ -17,7 +17,7 @@ def eye(comm, N):
     return mat
 
 
-@pytest.mark.parametrize("N", ["1000", "10000"])
+@pytest.mark.parametrize("N", ["1000", "10000", "100000"])
 def test_dist_mat_vec(N):
     comm = MPI.COMM_WORLD
     mat = eye(comm, N)
@@ -44,21 +44,54 @@ def test_dist_mat_vec(N):
         assert numpy.allclose(arr, x_0)
 
 
-@pytest.mark.parametrize("mat_str", ["FEMLAB/poisson2D", "GHS_indef/helm3d01"])
+@pytest.mark.parametrize(
+    "mat_str", ["FEMLAB/poisson2D", "GHS_indef/helm3d01", "HB/curtis54"]
+)
 def test_matvec_suitesparse(mat_str):
     comm = MPI.COMM_WORLD
     mat = odd.sparse.get_csr_matrix(mat_str, False, comm=MPI.COMM_WORLD)
     A = odd.sparse.distribute_csr_matrix(mat, comm)
 
     b = A.get_vector()
-    b.fill(1)
+    b[:] = 1
+    # b[:] = numpy.random.rand(b.local_shape[0])
+    # b.update()
 
     x = A.matvec(b)
-    my_array = comm.gather(x.array)
+
+    x_array = comm.gather(x.array)
     b_array = comm.gather(b.array)
 
     if comm.rank == 0:
-        arr = numpy.hstack(my_array)
+        x_array = numpy.hstack(x_array)
         b_0 = numpy.hstack(b_array)
         x_0 = mat @ b_0
-        assert numpy.allclose(arr, x_0)
+        assert numpy.allclose(x_array, x_0)
+
+    mat = comm.bcast(mat, root=0)
+    l, r = A.row_map.local_range
+    colmap = A.col_map
+    global_indices = colmap.local_to_global(A.l_matrix.indices)
+    assert numpy.all(global_indices == mat[l:r].indices)
+
+
+@pytest.mark.parametrize("N", [100, 1000, 5000])
+def test_random_matrix(N):
+    comm = MPI.COMM_WORLD
+
+    numpy.random.seed(42)
+    mat = sparse.random(N, N, density=0.25).tocsr()
+    A = odd.sparse.distribute_csr_matrix(mat, comm)
+
+    b = A.get_vector()
+    b[:] = numpy.random.rand(b.local_shape[0])
+    b.update()
+
+    r = A @ b
+
+    # Gather data from all procs in all other procs
+    rr = r.allgather()
+    c = b.allgather()
+
+    x = mat @ c
+    assert numpy.allclose(x, rr)

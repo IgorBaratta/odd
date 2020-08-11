@@ -1,22 +1,29 @@
+import odd
+from odd.sparse.linalg import cg
+from scipy.sparse.linalg import spsolve
 from mpi4py import MPI
-
 import numpy
+import pyamg
 
-from odd.utils import partition1d
-from odd.communication import NeighborVectorScatter
-
-global_size = 100
-overlap = 10
+from matplotlib import pyplot as plt
 
 comm = MPI.COMM_WORLD
-l2gmap = partition1d(comm, global_size, overlap)
-scatter = NeighborVectorScatter(l2gmap)
 
-bi = numpy.ones(l2gmap.local_size, dtype=numpy.float) * comm.rank
+if comm.rank == 0:
+    mat = pyamg.gallery.poisson((10000, 10000), format="csr")
+else:
+    mat = None
+A = odd.sparse.distribute_csr_matrix(mat, comm)
 
-# Update Ghosts with MPI-3 Neighborhood Communication
-array = bi.copy()
-array[l2gmap.owned_size :] = 0
-scatter.reverse(array)
-assert numpy.all(array[l2gmap.owned_size :] == l2gmap.ghost_owners)
+b = A.get_vector()
+b.fill(1)
+x = b.copy()
 
+res = []
+t = MPI.Wtime()
+for i in range(10):
+    x = A @ x
+t = MPI.Wtime() - t
+
+if comm.rank == 0:
+    print(t)

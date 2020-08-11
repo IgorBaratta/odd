@@ -44,6 +44,7 @@ class DistMatrix(scipy.sparse.linalg.LinearOperator):
 
         self.row_map = row_map
         self.col_map = col_map
+        self.comm = comm
 
     def __mul__(self, other):
         if isinstance(other, DistArray):
@@ -89,3 +90,11 @@ class DistMatrix(scipy.sparse.linalg.LinearOperator):
         y = self._matvec(x)
 
         return y
+
+    @property
+    def nnz(self):
+        sendbuf = numpy.array([self.l_matrix.nnz])
+        recvbuf = numpy.zeros_like(sendbuf)
+        self.comm.Allreduce(sendbuf, recvbuf)
+        return recvbuf[0]
+

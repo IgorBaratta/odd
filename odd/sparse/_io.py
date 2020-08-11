@@ -15,10 +15,12 @@ import numpy
 def get_csr_matrix(Name: str, verbose: bool = True, comm=MPI.COMM_WORLD) -> csr_matrix:
     """
     Get matrix from the SuiteSparse Matrix Collection website and
-    convert to the a distributed sparse matrix in the odd.sparse_matrix format.
+    convert to the distributed sparse matrix in the odd.sparse_matrix format.
 
     The method only open the files or read from input streams on MPI Process 0,
     and redistribute data to the other MPI processes. It can be quite expensive.
+
+    
 
     """
     base_url = "https://suitesparse-collection-website.herokuapp.com/MM/"
@@ -73,21 +75,33 @@ def distribute_csr_matrix(A, comm=MPI.COMM_WORLD, root=0) -> DistMatrix:
 
     # Distribute indices and data
     l_indptr = distribute_indptr(rowmap, A, root=0)
-    l_data = distribute_data(rowmap, A, l_indptr, root=0)
-    indices = distribute_indices(rowmap, A, l_indptr, root=0)
+    assert l_indptr.size == rowmap.local_size + 1
 
-    left, right = rowmap.local_range
-    ghosts = indices[numpy.logical_or(indices < left, indices >= right)]
-    ghosts = numpy.unique(ghosts)
+    l_data = distribute_data(rowmap, A, l_indptr, root=0)
+    assert l_indptr[-1] == l_data.size
+
+    indices = distribute_indices(rowmap, A, l_indptr, root=0)
+    assert l_indptr[-1] == indices.size
+
+    ghosts = compute_ghosts(rowmap, indices)
 
     colmap = IndexMap(comm, rowmap.owned_size, ghosts)
     l_indices = colmap.global_to_local(indices)
-    l_indptr = l_indptr - l_indptr[0]
-    l_matrix = csr_matrix(
+    assert numpy.max(l_indices) <= colmap.local_size
+
+    local_matrix = csr_matrix(
         (l_data, l_indices, l_indptr), shape=[rowmap.local_size, colmap.local_size]
     )
 
-    return DistMatrix(l_matrix, shape, row_map=rowmap, col_map=colmap)
+    return DistMatrix(local_matrix, shape, row_map=rowmap, col_map=colmap)
+
+
+def compute_ghosts(rowmap, indices):
+    # Compute ghosts (indices that are not in local range)
+    left, right = rowmap.local_range
+    ghosts = indices[numpy.logical_or(indices < left, indices >= right)]
+    ghosts = numpy.unique(ghosts)
+    return ghosts
 
 
 def distribute_indptr(rowmap, matrix, root=0) -> numpy.ndarray:
@@ -116,7 +130,7 @@ def distribute_indptr(rowmap, matrix, root=0) -> numpy.ndarray:
 
     recv_buffer = numpy.empty(rowmap.owned_size + 1, dtype=numpy.int64)
     comm.Scatterv([sendbuf, count, displ, mpi_type], recv_buffer, root)
-    indptr = numpy.copy(recv_buffer)
+    indptr = numpy.copy(recv_buffer) - recv_buffer[0]
 
     return indptr
 

@@ -84,7 +84,15 @@ class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
         """
         Update ghost data
         """
-        self.scatter.reverse(self._array)
+        comm = self._map.forward_comm
+        send_data = self._array[self._map.reverse_indices]
+        recv_data = self.ghost_values.copy()
+
+        comm.Neighbor_alltoallv(
+            [send_data, (self._map.forward_count(), None)],
+            [recv_data, (self._map.reverse_count(), None)],
+        )
+        self._array[self._map.owned_size :] = recv_data
 
     def duplicate(self):
         return self.__class__(
@@ -182,6 +190,18 @@ class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
         # global size of the distributed array
         return reduce((lambda x, y: x * y), self.shape)
 
+    def allgather(self) -> numpy.ndarray:
+        """
+        Gathers data from all processes and distributes it to all processes.
+
+        @Note:  Collective Function
+        """
+        comm = self.mpi_comm
+        recvbuf = numpy.zeros(self.shape, dtype=self.dtype)
+        sendbuf = self.array.copy()
+        comm.Allgatherv(sendbuf, recvbuf)
+        return recvbuf
+
     def __array_function__(self, func, types, args, kwargs):
 
         if func not in HANDLED_FUNCTIONS:
@@ -195,6 +215,9 @@ class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
     @staticmethod
     def get_handled_functions():
         return [func.__name__ for func in HANDLED_FUNCTIONS]
+
+
+## Handled Operations:
 
 
 def implements(numpy_func):

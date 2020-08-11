@@ -15,7 +15,7 @@ def cg(
     callback=None,
     residuals=None,
 ):
-    A, M, x, b, postprocess = make_system(A, M, x0, b)
+    A, M, x, b = make_system(A, M, x0, b)
 
     # determine maxiter
     if maxiter is None:
@@ -36,10 +36,11 @@ def cg(
     # Check initial guess ( scaling by b, if b != 0,
     #   must account for case when norm(b) is very small)
     normb = norm(b)
+
     if normb == 0.0:
         normb = 1.0
     if normr < tol * normb:
-        return (postprocess(x), 0)
+        return (x, 0)
 
     # Scale tol by ||r_0||_M
     if normr != 0.0:
@@ -54,12 +55,13 @@ def cg(
         Ap = A @ p
 
         rz_old = rz
+
         # Step number in Saad's pseudocode
         pAp = numpy.dot(Ap, p)  # check curvature of A
 
         if pAp < 0.0:
             # warn("\nIndefinite matrix detected in CG, aborting\n")
-            return (postprocess(x), -1)
+            return (x, -1)
 
         alpha = rz / pAp  # 3
         x = x + alpha * p  # 4
@@ -67,14 +69,13 @@ def cg(
         if numpy.mod(iter, recompute_r) and iter > 0:  # 5
             r = r - alpha * Ap
         else:
-            r = b - A * x
+            r = b - A @ x
 
         z = r.copy()  # 6
         rz = numpy.dot(r, z)
 
         if rz < 0.0:  # check curvature of M
-            # warn("\nIndefinite preconditioner detected in CG, aborting\n")
-            return (postprocess(x), -1)
+            return (x, -1)
 
         beta = rz / rz_old  # 7
         p = p * beta + z  # 8
@@ -90,9 +91,10 @@ def cg(
             callback(x)
 
         if normr < tol:
-            return (postprocess(x), 0)
+            return (x, 0)
+
         elif rz == 0.0:
-            return (postprocess(x), -1)
+            return (x, -1)
 
         if iter == maxiter:
-            return (postprocess(x), iter)
+            return (x, iter)
