@@ -11,11 +11,11 @@ from collections.abc import Iterable
 from functools import reduce
 from numbers import Integral
 
-from ._utils import partition1d
-from ._index_map import IndexMap
-from ._operations import mpi_reduction, dot1d
+from odd.utils import partition1d
+from odd.communication import IndexMap
+from ._operations import mpi_reduction, dot1d, vdot1d
 
-# from ..communication._reduction import parallel_reduce
+from odd.communication.mpi3_scatter import NeighborVectorScatter
 
 
 HANDLED_FUNCTIONS = {}
@@ -54,8 +54,6 @@ class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
         elif index_map is None:
             self._map = partition1d(comm, shape[0], 0)
 
-        # TODO: Check if partition matches shape
-
         local_shape = list(shape)
         local_shape[0] = self._map.local_size
         self.local_shape = tuple(local_shape)
@@ -68,6 +66,79 @@ class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
                 raise TypeError
         else:
             self._array = numpy.ndarray(self.local_shape, dtype=dtype)
+
+        assert self._array.shape[0] == self._map.local_size
+        assert self.array.shape[0] == self._map.owned_size
+
+        self.scatter = NeighborVectorScatter(self._map)
+
+    @property
+    def array(self):
+        return self._array[: self._map.owned_size]
+
+    # @property
+    def ghost_values(self):
+        return self._array[self._map.owned_size :]
+
+    def shared_values(self):
+        return self._array[self._map.forward_indices]
+
+    def update(self):
+        """
+        Update ghost data.
+        Send arrays values from owned indices to, processes
+        who has the same index in the ghost region.
+        """
+        mpi_comm = self._map.forward_comm
+        send_data = self.shared_values()
+        recv_data = self.ghost_values()
+
+        mpi_comm.Neighbor_alltoallv(
+            [send_data, (self._map.forward_count(), None)],
+            [recv_data, (self._map.reverse_count(), None)],
+        )
+
+    def accumulate(self, op=numpy.add, weights=None):
+        """
+        Accumulate contributions from ghosts/overlap region
+        """
+        mpi_comm = self._map.reverse_comm
+
+        if weights is None:
+            send_data = self.ghost_values()
+        else:
+            send_data = weights * self.ghost_values()
+
+        recv_size = numpy.sum(self._map.forward_count())
+        recv_data = numpy.zeros(recv_size, dtype=self.dtype)
+
+        mpi_comm.Neighbor_alltoallv(
+            [send_data, (self._map.reverse_count(), None)],
+            [recv_data, (self._map.forward_count(), None)]
+        )
+
+        op.at(self._array, self._map.forward_indices, recv_data)
+
+    def duplicate(self):
+        return self.__class__(
+            shape=self.shape[0], dtype=self.dtype, index_map=self._map
+        )
+
+    def astype(self, dtype):
+        return self.__class__(
+            shape=self.shape[0],
+            dtype=dtype,
+            buffer=self._array.astype(dtype),
+            index_map=self._map,
+        )
+
+    def copy(self):
+        return self.__class__(
+            shape=self.shape[0],
+            dtype=self.dtype,
+            buffer=self._array,
+            index_map=self._map,
+        )
 
     def get_local_view(self):
         return self._array
@@ -83,18 +154,21 @@ class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
         """
         self._array[:] = value
 
+    def __len__(self):
+        return reduce((lambda x, y: x * y), self.shape)
+
     def __repr__(self):
         return (
             f"odd.{self.__class__.__name__}"
-            + f"(shape={self.local_shape}, dtype={self.dtype.name}"
-            + f"rank={self.mpi_comm.rank})"
+            + f"(shape={self.local_shape}, dtype={self.dtype.name},"
+            + f" rank={self.mpi_comm.rank})"
         )
 
     def __setitem__(self, key, value):
         self._array[key] = value
 
     def __array__(self):
-        return self._array
+        return self._array[0 : self._map.owned_size]
 
     def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
         """
@@ -110,10 +184,12 @@ class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
 
         if method == "__call__":
             if ufunc.nin == 1 and ufunc.nout == 1:
+                buffer = ufunc(self._array, **kwargs)
                 return self.__class__(
                     shape=self.shape,
                     dtype=self.dtype,
-                    buffer=ufunc(self._array, **kwargs),
+                    index_map=self._map,
+                    buffer=buffer,
                     comm=self.mpi_comm,
                 )
 
@@ -141,6 +217,18 @@ class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
         # global size of the distributed array
         return reduce((lambda x, y: x * y), self.shape)
 
+    def allgather(self) -> numpy.ndarray:
+        """
+        Gathers data from all processes and distributes it to all processes.
+
+        @Note:  Collective Function
+        """
+        comm = self.mpi_comm
+        recvbuf = numpy.zeros(self.shape, dtype=self.dtype)
+        sendbuf = self.array.copy()
+        comm.Allgatherv(sendbuf, recvbuf)
+        return recvbuf
+
     def __array_function__(self, func, types, args, kwargs):
 
         if func not in HANDLED_FUNCTIONS:
@@ -154,6 +242,9 @@ class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
     @staticmethod
     def get_handled_functions():
         return [func.__name__ for func in HANDLED_FUNCTIONS]
+
+
+# ========= Handled Operations:
 
 
 def implements(numpy_func):
@@ -201,8 +292,11 @@ def dot(a, b, **kwargs):
     return dot1d(a, b)
 
 
-if __name__ == "__main__":
-    x = DistArray((100000, 10000))
-    x.fill(2)
-    y = numpy.add(x, x)
-    print(y.size)
+@implements(numpy.vdot)
+def vdot(a, b, **kwargs):
+    return vdot1d(a, b)
+
+
+@implements(numpy.iscomplexobj)
+def iscomplexobj(a, **kwargs):
+    return numpy.iscomplexobj(a.array)

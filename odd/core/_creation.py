@@ -21,11 +21,11 @@ def zeros(shape, map=None, dtype=float, order="C"):
 
 def ones(shape, map=None, dtype=float, order="C"):
     array = DistArray(shape, dtype, index_map=map, comm=MPI.COMM_WORLD)
-    array.fill(0)
+    array.fill(1)
     return array
 
 
-def full(shape, fill_value, map=None, dtype=float, order="C"):
-    array = DistArray(shape, dtype, index_map=map, comm=MPI.COMM_WORLD)
+def full(shape, fill_value, map=[], dtype=float, order="C"):
+    array = DistArray(shape, dtype, index_map=[], comm=MPI.COMM_WORLD)
     array.fill(fill_value)
     return array
