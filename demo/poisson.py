@@ -19,13 +19,9 @@ b = A.get_vector()
 b.fill(1)
 
 res = []
-t = MPI.Wtime()
 x, info = cg(A, b, residuals=res)
-t = MPI.Wtime() - t
 
 # print(numpy.linalg.norm(x))
 if comm.rank == 0:
     plt.plot(numpy.log10(res))
     plt.show()
-    print(res[-1])
-    print(t)
