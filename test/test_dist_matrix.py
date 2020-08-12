@@ -27,11 +27,11 @@ def test_dist_mat_vec(N):
     b.fill(comm.rank)
 
     # before ghost update
-    assert numpy.all(b.ghost_values == comm.rank)
+    assert numpy.all(b.ghost_values() == comm.rank)
     b.update()
 
     # after updating ghost values
-    assert numpy.all(b.ghost_values == b._map.ghost_owners)
+    assert numpy.all(b.ghost_values() == b._map.ghost_owners)
 
     x = A.matvec(b)
     my_array = comm.gather(x.array)
@@ -52,10 +52,8 @@ def test_matvec_suitesparse(mat_str):
     mat = odd.sparse.get_csr_matrix(mat_str, False, comm=MPI.COMM_WORLD)
     A = odd.sparse.distribute_csr_matrix(mat, comm)
 
-    b = A.get_vector()
-    b[:] = 1
-    # b[:] = numpy.random.rand(b.local_shape[0])
-    # b.update()
+    b[:] = numpy.random.rand(b.local_shape[0])
+    b.update()
 
     x = A.matvec(b)
 
