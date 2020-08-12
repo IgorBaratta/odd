@@ -82,7 +82,7 @@ class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
 
     def shared_values(self):
         return self._array[self._map.forward_indices]
-        
+
     def update(self):
         """
         Update ghost data.
@@ -98,12 +98,12 @@ class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
             [recv_data, (self._map.reverse_count(), None)],
         )
 
-    def accumulate(self, op=numpy.add, weights = None):
+    def accumulate(self, op=numpy.add, weights=None):
         """
         Accumulate contributions from ghosts/overlap region
         """
         mpi_comm = self._map.reverse_comm
-        
+
         if weights is None:
             send_data = self.ghost_values()
         else:
@@ -118,7 +118,6 @@ class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
         )
 
         op.at(self._array, self._map.forward_indices, recv_data)
-
 
     def duplicate(self):
         return self.__class__(
@@ -245,7 +244,7 @@ class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
         return [func.__name__ for func in HANDLED_FUNCTIONS]
 
 
-## Handled Operations:
+# ========= Handled Operations:
 
 
 def implements(numpy_func):
@@ -292,9 +291,11 @@ def size(array):
 def dot(a, b, **kwargs):
     return dot1d(a, b)
 
+
 @implements(numpy.vdot)
 def vdot(a, b, **kwargs):
     return vdot1d(a, b)
+
 
 @implements(numpy.iscomplexobj)
 def iscomplexobj(a, **kwargs):

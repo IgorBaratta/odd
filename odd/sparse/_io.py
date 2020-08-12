@@ -19,9 +19,6 @@ def get_csr_matrix(Name: str, verbose: bool = True, comm=MPI.COMM_WORLD) -> csr_
 
     The method only open the files or read from input streams on MPI Process 0,
     and redistribute data to the other MPI processes. It can be quite expensive.
-
-    
-
     """
     base_url = "https://suitesparse-collection-website.herokuapp.com/MM/"
     url = base_url + Name + ".tar.gz"

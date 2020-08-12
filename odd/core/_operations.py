@@ -29,6 +29,7 @@ def dot1d(a, b):
     comm.Allreduce(sendbuf, recvbuf, MPI.SUM)
     return recvbuf
 
+
 def vdot1d(a, b):
     ldot = numpy.vdot(a.array, b.array)
     sendbuf = numpy.asarray(ldot)

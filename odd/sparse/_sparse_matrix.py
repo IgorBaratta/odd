@@ -97,4 +97,3 @@ class DistMatrix(scipy.sparse.linalg.LinearOperator):
         recvbuf = numpy.zeros_like(sendbuf)
         self.comm.Allreduce(sendbuf, recvbuf)
         return recvbuf[0]
-
