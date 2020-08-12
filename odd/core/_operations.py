@@ -10,7 +10,7 @@ def mpi_reduction(dist_array, func, **kwargs):
     local = func(dist_array.array, **kwargs)
     sendbuf = numpy.asarray(local)
 
-    if func.__name__ in MPI_OP:
+    if (func.__name__ in MPI_OP) and not numpy.iscomplexobj(dist_array):
         recvbuf = numpy.zeros(sendbuf.size, dtype=sendbuf.dtype)
         comm.Allreduce(sendbuf, recvbuf, MPI_OP[func.__name__])
         return recvbuf
@@ -23,8 +23,17 @@ def mpi_reduction(dist_array, func, **kwargs):
 def dot1d(a, b):
     ldot = numpy.dot(a.array, b.array)
     sendbuf = numpy.asarray(ldot)
-    recvbuf = numpy.zeros(sendbuf.size, dtype=sendbuf.dtype)
+    recvbuf = numpy.zeros_like(sendbuf)
     comm: MPI.Intracomm = a.mpi_comm
     assert a.mpi_comm.size == b.mpi_comm.size
     comm.Allreduce(sendbuf, recvbuf, MPI.SUM)
-    return recvbuf[0]
+    return recvbuf
+
+def vdot1d(a, b):
+    ldot = numpy.vdot(a.array, b.array)
+    sendbuf = numpy.asarray(ldot)
+    recvbuf = numpy.zeros_like(sendbuf)
+    comm: MPI.Intracomm = a.mpi_comm
+    assert a.mpi_comm.size == b.mpi_comm.size
+    comm.Allreduce(sendbuf, recvbuf, MPI.SUM)
+    return recvbuf

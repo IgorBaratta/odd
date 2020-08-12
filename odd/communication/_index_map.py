@@ -49,7 +49,6 @@ class IndexMap(object):
         ghosts:
             The global indices of ghost entries, or empty array if not needed.
         """
-
         self._ghosts = numpy.array(ghosts, dtype=numpy.int64)
         self._owned_size = owned_size
         self._ghost_owners = ghost_owners
@@ -106,6 +105,7 @@ class IndexMap(object):
             sources=self.reverse_neighbors, destinations=self.forward_neighbors
         )
 
+        self.forward_indices = self.compute_forward_indices()
         self.comm = comm
 
     @property
@@ -171,17 +171,10 @@ class IndexMap(object):
     def ordered_indices(self):
         return numpy.sort(self.indices)
 
-    @property
-    def reverse_indices(self) -> ndarray:
-        # Order ghosts by owner rank
-        # owners_order = self._ghost_owners.argsort()
-        # send_data = self._ghosts[owners_order]
-        # TODO: Check if ghosts need to be sorted ...
+    def compute_forward_indices(self) -> ndarray:
         send_data = self._ghosts.copy()
         recv_data = numpy.zeros(numpy.sum(self.forward_counts), dtype=numpy.int64)
 
-        # Send reverse_counts ghost indices to reverse neighbors and receive forward_counts
-        # owned indices from forward neighbors
         self.reverse_comm.Neighbor_alltoallv(
             [send_data, (self.reverse_counts, None)],
             [recv_data, (self.forward_counts, None)],
@@ -190,7 +183,7 @@ class IndexMap(object):
 
     @property
     def shared_indices(self) -> ndarray:
-        return numpy.unique(self.reverse_indices)
+        return numpy.unique(self.forward_indices)
 
     @property
     def num_shared_indices(self) -> int:
@@ -199,11 +192,11 @@ class IndexMap(object):
         """
         return self.shared_indices.size
 
-    def reverse_count(self, block_size=1):
-        return self.reverse_counts * block_size
+    def reverse_count(self):
+        return self.reverse_counts
 
-    def forward_count(self, block_size=1):
-        return self.forward_counts * block_size
+    def forward_count(self):
+        return self.forward_counts
 
     def global_to_local(self, indices):
         return global_to_local_numba(indices, self.local_range, self.ghosts)

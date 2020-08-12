@@ -13,7 +13,7 @@ from numbers import Integral
 
 from odd.utils import partition1d
 from odd.communication import IndexMap
-from ._operations import mpi_reduction, dot1d
+from ._operations import mpi_reduction, dot1d, vdot1d
 
 from odd.communication.mpi3_scatter import NeighborVectorScatter
 
@@ -76,23 +76,49 @@ class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
     def array(self):
         return self._array[: self._map.owned_size]
 
-    @property
+    # @property
     def ghost_values(self):
         return self._array[self._map.owned_size :]
 
+    def shared_values(self):
+        return self._array[self._map.forward_indices]
+        
     def update(self):
         """
-        Update ghost data
+        Update ghost data.
+        Send arrays values from owned indices to, processes
+        who has the same index in the ghost region.
         """
-        comm = self._map.forward_comm
-        send_data = self._array[self._map.reverse_indices]
-        recv_data = self.ghost_values.copy()
+        mpi_comm = self._map.forward_comm
+        send_data = self.shared_values()
+        recv_data = self.ghost_values()
 
-        comm.Neighbor_alltoallv(
+        mpi_comm.Neighbor_alltoallv(
             [send_data, (self._map.forward_count(), None)],
             [recv_data, (self._map.reverse_count(), None)],
         )
-        self._array[self._map.owned_size :] = recv_data
+
+    def accumulate(self, op=numpy.add, weights = None):
+        """
+        Accumulate contributions from ghosts/overlap region
+        """
+        mpi_comm = self._map.reverse_comm
+        
+        if weights is None:
+            send_data = self.ghost_values()
+        else:
+            send_data = weights * self.ghost_values()
+
+        recv_size = numpy.sum(self._map.forward_count())
+        recv_data = numpy.zeros(recv_size, dtype=self.dtype)
+
+        mpi_comm.Neighbor_alltoallv(
+            [send_data, (self._map.reverse_count(), None)],
+            [recv_data, (self._map.forward_count(), None)]
+        )
+
+        op.at(self._array, self._map.forward_indices, recv_data)
+
 
     def duplicate(self):
         return self.__class__(
@@ -159,10 +185,12 @@ class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
 
         if method == "__call__":
             if ufunc.nin == 1 and ufunc.nout == 1:
+                buffer = ufunc(self._array, **kwargs)
                 return self.__class__(
                     shape=self.shape,
                     dtype=self.dtype,
-                    buffer=ufunc(self._array, **kwargs),
+                    index_map=self._map,
+                    buffer=buffer,
                     comm=self.mpi_comm,
                 )
 
@@ -263,3 +291,11 @@ def size(array):
 @implements(numpy.dot)
 def dot(a, b, **kwargs):
     return dot1d(a, b)
+
+@implements(numpy.vdot)
+def vdot(a, b, **kwargs):
+    return vdot1d(a, b)
+
+@implements(numpy.iscomplexobj)
+def iscomplexobj(a, **kwargs):
+    return numpy.iscomplexobj(a.array)
