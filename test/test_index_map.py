@@ -32,7 +32,7 @@ def test_circular_domain(owned_size):
     assert (rank + 1) % comm.size in l2gmap.neighbors
     assert (rank - 1) % comm.size in l2gmap.neighbors
 
-    assert numpy.all(numpy.sort(l2gmap.reverse_indices) == numpy.arange(num_ghosts))
+    assert numpy.all(numpy.sort(l2gmap.forward_indices) == numpy.arange(num_ghosts))
 
 
 @pytest.mark.parametrize("global_size", [100, 200])
@@ -43,19 +43,13 @@ def test_circular_domain(owned_size):
 def test_vec_scatter(global_size, overlap):
     comm = MPI.COMM_WORLD
     l2gmap = partition1d(comm, global_size, overlap)
-    scatter = NeighborVectorScatter(l2gmap)
 
     b = odd.DistArray(global_size, index_map=l2gmap)
     b.fill(comm.rank)
 
     # before update
-    assert numpy.all(b.ghost_values == comm.rank)
-    array = b._array.copy()
+    assert numpy.all(b.ghost_values() == comm.rank)
 
     b.update()
 
-    # update ghost data
-    assert numpy.all(b.ghost_values == b._map.ghost_owners)
-
-    scatter.reverse(array)
-    assert numpy.all(array == b._array)
+    assert numpy.all(b.ghost_values() == b._map.ghost_owners)

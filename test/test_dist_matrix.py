@@ -52,6 +52,7 @@ def test_matvec_suitesparse(mat_str):
     mat = odd.sparse.get_csr_matrix(mat_str, False, comm=MPI.COMM_WORLD)
     A = odd.sparse.distribute_csr_matrix(mat, comm)
 
+    b = A.get_vector()
     b[:] = numpy.random.rand(b.local_shape[0])
     b.update()
 
