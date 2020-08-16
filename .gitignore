@@ -9,9 +9,12 @@ _petsc*
 *tar.gz
 .vscode/
 *.mtx
+*.tar.gz
+*.prof
 
 # Distribution / packaging
 .idea
+.vscode
 .Python
 build/
 develop-eggs/

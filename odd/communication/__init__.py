@@ -4,11 +4,9 @@
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
-"""Main module for odd"""
 # flake8: noqa
 
-import odd.utils
-import odd.sparse
-import odd.communication
+from ._reduction import parallel_reduce
+from ._index_map import IndexMap
+from .mpi3_scatter import NeighborVectorScatter
 
-from odd.core import *
