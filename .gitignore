@@ -6,6 +6,9 @@ __pycache__/
 # C extensions
 *.so
 _petsc*
+*tar.gz
+.vscode/
+*.mtx
 
 # Distribution / packaging
 .idea
