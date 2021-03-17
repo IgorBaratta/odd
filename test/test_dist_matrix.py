@@ -70,7 +70,7 @@ def test_matvec_suitesparse(mat_str):
     mat = comm.bcast(mat, root=0)
     l, r = A.row_map.local_range
     colmap = A.col_map
-    global_indices = colmap.local_to_global(A.l_matrix.indices)
+    global_indices = colmap.local_to_global(A.local_matrix.indices)
     assert numpy.all(global_indices == mat[l:r].indices)
 
 
