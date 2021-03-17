@@ -136,7 +136,7 @@ class DistArray(numpy.lib.mixins.NDArrayOperatorsMixin):
         return self.__class__(
             shape=self.shape[0],
             dtype=self.dtype,
-            buffer=self._array,
+            buffer=self._array.copy(),
             index_map=self._map,
         )
 

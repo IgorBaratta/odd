@@ -32,7 +32,7 @@ class DistMatrix(scipy.sparse.linalg.LinearOperator):
         """
         self.dtype = None
         if isinstance(local_matrix, scipy.sparse.spmatrix):
-            self.l_matrix = local_matrix
+            self.local_matrix = local_matrix
             self.dtype = local_matrix.dtype
         else:
             raise NotImplementedError
@@ -54,7 +54,7 @@ class DistMatrix(scipy.sparse.linalg.LinearOperator):
 
     def _matvec(self, other: DistArray):
         buffer = numpy.zeros_like(other._array)
-        buffer[: self.row_map.local_size] = self.l_matrix @ other._array
+        buffer[: self.row_map.local_size] = self.local_matrix @ other._array
         return DistArray(other.shape, buffer=buffer, index_map=other._map)
 
     def _matmat(self, other):
@@ -93,7 +93,7 @@ class DistMatrix(scipy.sparse.linalg.LinearOperator):
 
     @property
     def nnz(self):
-        sendbuf = numpy.array([self.l_matrix.nnz])
+        sendbuf = numpy.array([self.local_matrix.nnz])
         recvbuf = numpy.zeros_like(sendbuf)
         self.comm.Allreduce(sendbuf, recvbuf)
         return recvbuf[0]
